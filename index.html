@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>技术分析产物 · technical-analysis-notes</title>
+<style>
+  :root{--bg:#f7f4ec;--surface:#fffdf7;--ink:#1c2026;--ink2:#4a4f57;--line:#d8d0bd;--teal:#0e6b62;--teal-bg:#e0efec}
+  @media (prefers-color-scheme: dark){:root{--bg:#131518;--surface:#1b1e22;--ink:#ece7da;--ink2:#b8b4a8;--line:#3a3e44;--teal:#4fc4b5;--teal-bg:#17322f}}
+  *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--ink);font-family:"Noto Sans SC",system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif}
+  main{max-width:860px;margin:0 auto;padding:56px 20px 80px}
+  h1{font-size:30px;margin:0 0 10px} .sub{color:var(--ink2);line-height:1.7;margin:0 0 36px}
+  .card{display:block;text-decoration:none;color:inherit;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:22px 24px;margin:0 0 16px}
+  .card:hover{border-color:var(--teal)}
+  .tag{display:inline-block;font-size:12px;color:var(--teal);background:var(--teal-bg);border-radius:999px;padding:2px 10px;margin-bottom:10px}
+  .card h2{font-size:20px;margin:0 0 8px} .card p{color:var(--ink2);line-height:1.7;margin:0}
+  .date{font-size:13px;color:var(--ink2);margin-top:12px}
+  footer{color:var(--ink2);font-size:13px;margin-top:40px}
+  a{color:var(--teal)}
+</style>
+</head>
+<body>
+<main>
+  <h1>技术分析产物</h1>
+  <p class="sub">我与 Muse 协作完成的技术分析：交互式架构图、源码分析与深度拆解。仓库地址：<a href="https://github.com/hazirguo/technical-analysis-notes">github.com/hazirguo/technical-analysis-notes</a></p>
+
+  <a class="card" href="./muse-architecture/">
+    <span class="tag">平台架构</span>
+    <h2>Muse 平台技术架构图</h2>
+    <p>六层分层总览（接入 / 会话 / Agent 运行时 / 能力 / 状态与记忆 / 产物，右侧纵贯安全体系）、一次请求的 7 步生命周期、Agent 协作拓扑、记忆系统、安全与信任边界，以及核心组件速览表。可点击交互。</p>
+    <div class="date">2026-10-26</div>
+  </a>
+
+  <footer>后续产物会持续追加到本页。每个产物一个目录，入口为该目录下的 index.html。</footer>
+</main>
+</body>
+</html>

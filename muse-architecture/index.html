@@ -1,0 +1,580 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="light dark" />
+    <link rel="icon" href="data:," />
+    <title>Muse 平台技术架构图</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@600;700;900&family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+      :root{
+        --bg:#f7f4ec;
+        --bg-grid:rgba(28,32,38,.055);
+        --surface:#fffdf7;
+        --surface-2:#efe9db;
+        --ink:#1c2026;
+        --ink-2:#4a4f57;
+        --ink-3:#7a7f87;
+        --line:#d8d0bd;
+        --line-strong:#1c2026;
+        --teal:#0e6b62;
+        --teal-bg:#e0efec;
+        --rust:#b94a1e;
+        --rust-bg:#f7e6dd;
+        --amber:#9a6a12;
+        --amber-bg:#f3ead2;
+        --slate:#44556b;
+        --slate-bg:#e3e8ee;
+        --plum:#6d3b5e;
+        --plum-bg:#efe2ec;
+        --olive:#5a6b2f;
+        --olive-bg:#e9edd9;
+        --shadow:0 1px 0 rgba(28,32,38,.9), 6px 6px 0 rgba(28,32,38,.08);
+      }
+      @media (prefers-color-scheme: dark){
+        :root{
+          --bg:#131518;
+          --bg-grid:rgba(255,255,255,.05);
+          --surface:#1b1e22;
+          --surface-2:#24282d;
+          --ink:#ece7da;
+          --ink-2:#b8b4a8;
+          --ink-3:#8b887f;
+          --line:#3a3e44;
+          --line-strong:#ece7da;
+          --teal:#4fc4b5;
+          --teal-bg:#17322f;
+          --rust:#e88a5f;
+          --rust-bg:#38231b;
+          --amber:#d9a94a;
+          --amber-bg:#332b16;
+          --slate:#93a8c2;
+          --slate-bg:#232b36;
+          --plum:#cf9ac0;
+          --plum-bg:#31202d;
+          --olive:#a9bd76;
+          --olive-bg:#272d18;
+          --shadow:0 1px 0 rgba(0,0,0,.6), 6px 6px 0 rgba(0,0,0,.25);
+        }
+      }
+      *{box-sizing:border-box}
+      html{scroll-behavior:smooth}
+      body{
+        margin:0;
+        background:
+          linear-gradient(var(--bg-grid) 1px, transparent 1px),
+          linear-gradient(90deg, var(--bg-grid) 1px, transparent 1px),
+          var(--bg);
+        background-size:28px 28px, 28px 28px, auto;
+        color:var(--ink);
+        font-family:"Noto Sans SC", system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+        line-height:1.65;
+        -webkit-font-smoothing:antialiased;
+      }
+      .mono{font-family:"JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace}
+      .wrap{max-width:1120px;margin:0 auto;padding:0 20px 72px}
+
+      /* ---------- header ---------- */
+      header{padding:44px 0 8px}
+      .filetag{
+        display:inline-flex;align-items:center;gap:8px;
+        font-family:"JetBrains Mono",monospace;font-size:12px;letter-spacing:.04em;
+        border:1px solid var(--line-strong);padding:4px 10px;background:var(--surface);
+      }
+      .filetag i{width:8px;height:8px;background:var(--teal);display:inline-block}
+      h1{
+        font-family:"Noto Serif SC", "Songti SC", serif;font-weight:900;
+        font-size:clamp(30px,5.4vw,52px);line-height:1.15;margin:18px 0 12px;letter-spacing:.01em;
+      }
+      .lede{font-size:clamp(15px,2vw,18px);color:var(--ink-2);max-width:760px;margin:0}
+      .lede b{color:var(--ink)}
+      .stats{display:flex;flex-wrap:wrap;gap:10px;margin:24px 0 6px}
+      .stat{
+        border:1px solid var(--line);background:var(--surface);padding:10px 14px;min-width:132px;flex:1;
+      }
+      .stat .n{font-family:"JetBrains Mono",monospace;font-size:20px;font-weight:600;line-height:1.1}
+      .stat .l{font-size:12px;color:var(--ink-3);margin-top:2px}
+      nav.toc{display:flex;flex-wrap:wrap;gap:8px;margin:22px 0 0}
+      nav.toc a{
+        font-size:13px;color:var(--ink);text-decoration:none;border:1px solid var(--line);
+        background:var(--surface);padding:6px 12px;
+      }
+      nav.toc a:hover{border-color:var(--line-strong)}
+
+      /* ---------- sections ---------- */
+      section{margin-top:56px}
+      .sec-head{display:flex;align-items:baseline;gap:14px;border-bottom:2px solid var(--line-strong);padding-bottom:10px;margin-bottom:22px}
+      .sec-no{font-family:"JetBrains Mono",monospace;font-size:13px;color:var(--teal);font-weight:600}
+      h2{font-family:"Noto Serif SC","Songti SC",serif;font-size:clamp(22px,3.4vw,30px);font-weight:700;margin:0}
+      .sec-sub{color:var(--ink-2);font-size:14.5px;max-width:820px;margin:0 0 20px}
+      h3{font-size:16px;margin:0 0 8px}
+
+      /* ---------- layered diagram ---------- */
+      .arch{display:grid;grid-template-columns:1fr 196px;gap:14px;align-items:stretch}
+      .layers{display:flex;flex-direction:column;gap:0}
+      .layer{
+        text-align:left;width:100%;cursor:pointer;
+        border:1.5px solid var(--line-strong);background:var(--surface);
+        padding:14px 16px 13px;margin-bottom:-1.5px;position:relative;
+        font-family:inherit;color:var(--ink);
+        transition:transform .12s ease, box-shadow .12s ease;
+      }
+      .layer:hover{transform:translateX(4px)}
+      .layer.active{box-shadow:var(--shadow);z-index:2}
+      .layer .row{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+      .layer .code{font-family:"JetBrains Mono",monospace;font-size:11px;font-weight:600;padding:2px 7px;color:#fff}
+      @media (prefers-color-scheme: dark){ .layer .code{color:#101214} }
+      .layer .name{font-weight:700;font-size:16.5px}
+      .layer .en{font-family:"JetBrains Mono",monospace;font-size:11px;color:var(--ink-3)}
+      .layer .items{margin-top:7px;font-size:13px;color:var(--ink-2);display:flex;flex-wrap:wrap;gap:4px 14px}
+      .layer .items span::before{content:"· ";color:var(--ink-3)}
+      .c-teal{background:var(--teal)} .c-rust{background:var(--rust)} .c-amber{background:var(--amber)}
+      .c-slate{background:var(--slate)} .c-plum{background:var(--plum)} .c-olive{background:var(--olive)}
+      .layer[data-layer="access"]{border-left:8px solid var(--slate)}
+      .layer[data-layer="session"]{border-left:8px solid var(--amber)}
+      .layer[data-layer="runtime"]{border-left:8px solid var(--rust)}
+      .layer[data-layer="capability"]{border-left:8px solid var(--teal)}
+      .layer[data-layer="state"]{border-left:8px solid var(--plum)}
+      .layer[data-layer="artifact"]{border-left:8px solid var(--olive)}
+      .flow-arrow{text-align:center;font-family:"JetBrains Mono",monospace;font-size:11px;color:var(--ink-3);padding:3px 0}
+      .guard{
+        border:1.5px dashed var(--line-strong);background:var(--surface-2);
+        padding:16px 14px;display:flex;flex-direction:column;gap:10px;
+      }
+      .guard .gt{font-family:"JetBrains Mono",monospace;font-size:11px;font-weight:600;letter-spacing:.06em;color:var(--rust)}
+      .guard h3{font-size:15px}
+      .guard p{font-size:12.5px;color:var(--ink-2);margin:0}
+      .guard ul{margin:0;padding-left:16px;font-size:12.5px;color:var(--ink-2)}
+      .guard li{margin:5px 0}
+      .infra{
+        margin-top:14px;border:1px solid var(--line);background:var(--surface);
+        padding:10px 16px;font-size:13px;color:var(--ink-2);display:flex;flex-wrap:wrap;gap:6px 18px;align-items:center;
+      }
+      .infra b{color:var(--ink);font-family:"JetBrains Mono",monospace;font-size:12px}
+      .detail{
+        margin-top:16px;border:1.5px solid var(--line-strong);background:var(--surface);padding:20px;
+      }
+      .detail .dh{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:6px}
+      .detail .dh .name{font-family:"Noto Serif SC",serif;font-size:20px;font-weight:700}
+      .detail .dh .en{font-family:"JetBrains Mono",monospace;font-size:12px;color:var(--ink-3)}
+      .detail p{margin:6px 0 12px;color:var(--ink-2);font-size:14.5px;max-width:860px}
+      .chips{display:flex;flex-wrap:wrap;gap:8px}
+      .chip{font-size:12.5px;border:1px solid var(--line);background:var(--surface-2);padding:4px 10px}
+      .chip b{font-family:"JetBrains Mono",monospace;font-weight:600;font-size:12px}
+      .hint{font-size:12.5px;color:var(--ink-3);margin-top:10px}
+
+      /* ---------- lifecycle ---------- */
+      .steps{display:grid;grid-template-columns:repeat(7,1fr);gap:0;margin-top:6px}
+      .step{
+        border:1.5px solid var(--line-strong);background:var(--surface);margin-right:-1.5px;
+        padding:14px 12px;cursor:pointer;text-align:left;font-family:inherit;color:var(--ink);position:relative;
+      }
+      .step.active{background:var(--teal-bg)}
+      .step .sn{font-family:"JetBrains Mono",monospace;font-size:11px;color:var(--teal);font-weight:600}
+      .step .st{font-weight:700;font-size:14.5px;margin:4px 0 4px;line-height:1.35}
+      .step .sd{font-size:12px;color:var(--ink-2);line-height:1.5}
+      .step::after{
+        content:"→";position:absolute;right:-11px;top:16px;z-index:3;font-weight:700;
+        background:var(--bg);padding:0 2px;font-size:14px;
+      }
+      .step:last-child::after{content:"↺"}
+      .loop-note{
+        margin-top:14px;border:1px solid var(--line);background:var(--surface);padding:14px 18px;
+        font-size:14px;color:var(--ink-2);
+      }
+      .loop-note b{color:var(--ink)}
+
+      /* ---------- agent tree ---------- */
+      .treebox{border:1.5px solid var(--line-strong);background:var(--surface);padding:10px 6px}
+      .treebox svg{width:100%;height:auto;display:block}
+      .svg-box{fill:var(--surface);stroke:var(--line-strong);stroke-width:1.5}
+      .svg-title{font-family:"Noto Sans SC",sans-serif;font-size:15px;font-weight:700;fill:var(--ink)}
+      .svg-sub{font-family:"JetBrains Mono",monospace;font-size:11px;fill:var(--ink-3)}
+      .svg-line{stroke:var(--ink-3);stroke-width:1.5;fill:none}
+      .svg-accent{stroke:var(--rust);stroke-width:2;fill:none}
+      .cols3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:16px}
+      .card{border:1px solid var(--line);background:var(--surface);padding:16px 18px}
+      .card .tag{font-family:"JetBrains Mono",monospace;font-size:11px;font-weight:600;color:var(--teal)}
+      .card p{font-size:13.5px;color:var(--ink-2);margin:6px 0 0}
+
+      /* ---------- memory ---------- */
+      .mem{display:grid;grid-template-columns:1fr 64px 1fr;gap:0;align-items:stretch}
+      .mem-col{display:flex;flex-direction:column;gap:12px}
+      .mem-col .mh{font-family:"JetBrains Mono",monospace;font-size:12px;font-weight:600;letter-spacing:.05em}
+      .tier{border:1.5px solid var(--line-strong);background:var(--surface);padding:14px 16px}
+      .tier .tt{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap}
+      .tier .tt b{font-size:15px}
+      .tier .path{font-family:"JetBrains Mono",monospace;font-size:11.5px;color:var(--teal)}
+      .tier p{font-size:13px;color:var(--ink-2);margin:6px 0 0}
+      .mem-mid{display:flex;flex-direction:column;justify-content:center;gap:26px;padding:0 6px}
+      .mem-arrow{
+        border:1px solid var(--line);background:var(--surface-2);text-align:center;
+        font-size:11.5px;padding:8px 4px;line-height:1.45;
+      }
+      .mem-arrow .a{font-size:16px;display:block;line-height:1.2}
+      .inject{
+        margin-top:14px;border:1.5px dashed var(--line-strong);background:var(--surface-2);
+        padding:14px 18px;font-size:14px;color:var(--ink-2);
+      }
+      .inject b{color:var(--ink)}
+
+      /* ---------- safety ---------- */
+      .cols2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+      .safe{border:1.5px solid var(--line-strong);background:var(--surface);padding:18px 20px}
+      .safe .no{font-family:"JetBrains Mono",monospace;font-size:12px;color:var(--rust);font-weight:600}
+      .safe p{font-size:14px;color:var(--ink-2);margin:6px 0 0}
+      .safe code{font-family:"JetBrains Mono",monospace;font-size:12.5px;background:var(--surface-2);padding:1px 5px}
+
+      /* ---------- table ---------- */
+      .tbl{width:100%;border-collapse:collapse;background:var(--surface);border:1.5px solid var(--line-strong);font-size:14px}
+      .tbl th,.tbl td{border-bottom:1px solid var(--line);padding:11px 14px;text-align:left;vertical-align:top}
+      .tbl th{font-family:"JetBrains Mono",monospace;font-size:12px;letter-spacing:.04em;background:var(--surface-2)}
+      .tbl td:first-child{font-weight:700;white-space:nowrap}
+      .tbl td{color:var(--ink-2)}
+      .tbl td:first-child{color:var(--ink)}
+      .tbl tr:last-child td{border-bottom:none}
+
+      footer{margin-top:64px;border-top:1px solid var(--line);padding-top:18px;font-size:12.5px;color:var(--ink-3);display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+      footer .mono{font-size:11.5px}
+
+      @media (max-width:900px){
+        .arch{grid-template-columns:1fr}
+        .steps{grid-template-columns:1fr 1fr}
+        .step{margin-bottom:-1.5px}
+        .step::after{display:none}
+        .cols3{grid-template-columns:1fr}
+        .cols2{grid-template-columns:1fr}
+        .mem{grid-template-columns:1fr}
+        .mem-mid{flex-direction:row;padding:12px 0}
+        .mem-arrow{flex:1}
+        .stat{min-width:calc(50% - 10px)}
+      }
+      @media (max-width:680px){
+        .tbl, .tbl tbody, .tbl tr, .tbl td{display:block;width:100%}
+        .tbl thead{display:none}
+        .tbl tr{border-bottom:2px solid var(--line-strong);padding:10px 0 12px}
+        .tbl tr:last-child{border-bottom:none}
+        .tbl td{border-bottom:none;padding:2px 14px}
+        .tbl td:first-child{white-space:normal;font-size:15px;padding-bottom:4px}
+        .tbl td:nth-child(2)::before{content:"层 · ";color:var(--ink-3);font-size:12px}
+        .tbl td:nth-child(4)::before{content:"形态 · ";color:var(--ink-3);font-size:12px}
+      }
+      @media (prefers-reduced-motion: reduce){
+        html{scroll-behavior:auto}
+        .layer{transition:none}
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+
+      <header>
+        <span class="filetag"><i></i>SYSTEM ARCHITECTURE · 平台架构说明</span>
+        <h1>Muse 平台技术架构图</h1>
+        <p class="lede">Muse 不是一个「聊天框 + 大模型」，而是一个<b>以 Agent 运行时为核心</b>的个人智能体平台：上层是多端会话入口，中间是能规划、调用工具、派生子 Agent 的执行内核，下层是技能、连接器、长期记忆与产物系统。安全边界纵贯所有层。</p>
+        <div class="stats">
+          <div class="stat"><div class="n">6 层</div><div class="l">分层架构 · 点击下图逐层查看</div></div>
+          <div class="stat"><div class="n">Agent Loop</div><div class="l">推理 → 工具 → 回注 的执行循环</div></div>
+          <div class="stat"><div class="n">深度 ≤ 2</div><div class="l">主 Agent → 子 Agent 派生上限</div></div>
+          <div class="stat"><div class="n">文件即记忆</div><div class="l">长期记忆以 Markdown 落盘可审计</div></div>
+        </div>
+        <nav class="toc">
+          <a href="#arch">① 分层总览</a>
+          <a href="#lifecycle">② 请求生命周期</a>
+          <a href="#agents">③ Agent 协作拓扑</a>
+          <a href="#memory">④ 记忆系统</a>
+          <a href="#security">⑤ 安全与信任边界</a>
+          <a href="#stack">⑥ 组件速览</a>
+        </nav>
+      </header>
+
+      <!-- ================= 1. layered architecture ================= -->
+      <section id="arch">
+        <div class="sec-head"><span class="sec-no">FIG.01</span><h2>分层总览：六层 + 一条安全纵贯线</h2></div>
+        <p class="sec-sub">自上而下是调用方向：用户的每一次输入从接入层进入，经会话层路由到 Agent 运行时，运行时按需向下调用能力层、读写状态与记忆层，最终把结果沉淀为产物交付。右侧虚线框是纵贯各层的安全与信任体系——它不属于任何一层，而是每一层都要过的关。点击任意一层查看职责与关键组件。</p>
+
+        <div class="arch">
+          <div class="layers" role="list">
+            <button class="layer" data-layer="access">
+              <span class="row"><span class="code c-slate">L1</span><span class="name">接入层</span><span class="en">ACCESS / CLIENTS</span></span>
+              <span class="items"><span>移动端 WebView</span><span>Web 客户端</span><span>手机通知推送</span><span>产物分享卡片</span></span>
+            </button>
+            <div class="flow-arrow">↓ 会话消息 / 设备上下文 ↓</div>
+            <button class="layer" data-layer="session">
+              <span class="row"><span class="code c-amber">L2</span><span class="name">会话与交互层</span><span class="en">SESSION &amp; ROUTING</span></span>
+              <span class="items"><span>主聊天 Main Chat</span><span>侧边聊天 Side Chats</span><span>群聊</span><span>消息路由与审批卡</span></span>
+            </button>
+            <div class="flow-arrow">↓ 组装上下文 · 进入推理 ↓</div>
+            <button class="layer active" data-layer="runtime">
+              <span class="row"><span class="code c-rust">L3</span><span class="name">Agent 运行时</span><span class="en">AGENT RUNTIME · CORE</span></span>
+              <span class="items"><span>Muse Spark 模型</span><span>主 Agent</span><span>子 Agent 派生</span><span>上下文装配</span><span>工具调度循环</span></span>
+            </button>
+            <div class="flow-arrow">↓ 工具调用 / 技能与连接器 ↓</div>
+            <button class="layer" data-layer="capability">
+              <span class="row"><span class="code c-teal">L4</span><span class="name">能力层</span><span class="en">CAPABILITIES</span></span>
+              <span class="items"><span>内置工具集</span><span>Skills 技能库</span><span>Connectors 连接器</span><span>浏览器与深度研究</span><span>媒体生成</span></span>
+            </button>
+            <div class="flow-arrow">↓ 读写状态 · 定时唤醒 ↓</div>
+            <button class="layer" data-layer="state">
+              <span class="row"><span class="code c-plum">L5</span><span class="name">状态与记忆层</span><span class="en">STATE &amp; MEMORY</span></span>
+              <span class="items"><span>长期记忆</span><span>每日日志</span><span>人物 / 群组图谱</span><span>Goals 目标</span><span>Cron 定时</span><span>Hooks 事件</span><span>Workspace</span></span>
+            </button>
+            <div class="flow-arrow">↓ 构建 · 审计 · 发布 ↓</div>
+            <button class="layer" data-layer="artifact">
+              <span class="row"><span class="code c-olive">L6</span><span class="name">产物与交付层</span><span class="en">ARTIFACTS &amp; DELIVERY</span></span>
+              <span class="items"><span>Web Artifacts 网页应用</span><span>文档 / PDF / 表格</span><span>播客与 RSS</span><span>图片 / 视频</span></span>
+            </button>
+          </div>
+
+          <aside class="guard">
+            <span class="gt">CROSS-CUTTING</span>
+            <h3>安全与信任体系</h3>
+            <p>纵贯 L1–L6，每一次工具调用、凭据使用与外部发送都要经过它：</p>
+            <ul>
+              <li>隔离 VM 执行环境</li>
+              <li>Secure Vault 凭据保险库</li>
+              <li>敏感操作审批卡</li>
+              <li>提示注入防御（外部内容只作数据）</li>
+              <li>最小必要数据原则</li>
+            </ul>
+            <p>详见下方 <a href="#security" style="color:var(--rust)">⑤ 安全与信任边界</a>。</p>
+          </aside>
+        </div>
+
+        <div class="infra">
+          <b>INFRA</b>
+          <span>隔离的 Linux 虚拟机（每用户独立工作区 ~/workspace）</span>
+          <span>·</span><span>沙箱 iframe 渲染产物</span>
+          <span>·</span><span>文件系统即数据总线</span>
+          <span>·</span><span>网络出站经连接器 / 浏览器通道</span>
+        </div>
+
+        <div class="detail" id="layerDetail" aria-live="polite"></div>
+        <p class="hint">提示：点击上方任意一层，此处切换为该层的职责说明与关键组件。</p>
+      </section>
+
+      <!-- ================= 2. lifecycle ================= -->
+      <section id="lifecycle">
+        <div class="sec-head"><span class="sec-no">FIG.02</span><h2>一次请求的生命周期</h2></div>
+        <p class="sec-sub">一条用户消息不是「问一次、答一次」，而是进入一个循环：上下文先被装配（时间、身份、记忆、技能索引全部注入），模型在循环中反复推理与调用工具，直到任务完成才回复。复杂任务还会在循环内派生子 Agent 并行推进。点击步骤查看细节。</p>
+
+        <div class="steps" id="steps">
+          <button class="step active" data-step="0"><span class="sn">STEP 1</span><div class="st">消息到达</div><div class="sd">附带设备、时区与时间戳上下文</div></button>
+          <button class="step" data-step="1"><span class="sn">STEP 2</span><div class="st">上下文装配</div><div class="sd">注入 USER / MEMORY / 技能与连接器索引</div></button>
+          <button class="step" data-step="2"><span class="sn">STEP 3</span><div class="st">模型推理</div><div class="sd">Muse Spark 理解意图、制定计划</div></button>
+          <button class="step" data-step="3"><span class="sn">STEP 4</span><div class="st">工具调用</div><div class="sd">执行命令、读文件、查连接器、搜网页</div></button>
+          <button class="step" data-step="4"><span class="sn">STEP 5</span><div class="st">结果回注</div><div class="sd">工具结果回到上下文，继续推理</div></button>
+          <button class="step" data-step="5"><span class="sn">STEP 6</span><div class="st">派生子 Agent</div><div class="sd">复杂子任务并行分发、独立上下文执行</div></button>
+          <button class="step" data-step="6"><span class="sn">STEP 7</span><div class="st">交付与沉淀</div><div class="sd">回复 / 产物发布，关键事实写入记忆</div></button>
+        </div>
+
+        <div class="loop-note" id="stepDetail"></div>
+      </section>
+
+      <!-- ================= 3. agent topology ================= -->
+      <section id="agents">
+        <div class="sec-head"><span class="sec-no">FIG.03</span><h2>Agent 协作拓扑：一个主脑，多个分身</h2></div>
+        <p class="sec-sub">主 Agent 是唯一直接与用户对话的角色。它可以把边界清晰的子任务派生给子 Agent（深度最多 2 层）：构建器负责造产物、研究员负责查资料、执行员负责跑长流程。子 Agent 拥有隔离的上下文——看不到主会话的全部历史，只拿到任务书；完成后把结果回传主 Agent 汇总。这既保护了上下文窗口，也让并行成为可能。</p>
+
+        <div class="treebox">
+          <svg viewBox="0 0 960 340" role="img" aria-label="Agent 协作拓扑图">
+            <!-- connectors -->
+            <path class="svg-line" d="M480 86 V120"/>
+            <path class="svg-line" d="M170 120 H790"/>
+            <path class="svg-line" d="M170 120 V150 M480 120 V150 M790 120 V150"/>
+            <path class="svg-line" d="M170 232 V262 M480 232 V262"/>
+            <!-- user -->
+            <rect class="svg-box" x="380" y="14" width="200" height="52"/>
+            <text class="svg-title" x="480" y="38" text-anchor="middle">用户</text>
+            <text class="svg-sub" x="480" y="56" text-anchor="middle">USER · 唯一对话方</text>
+            <path class="svg-accent" d="M480 66 V86" marker-end="url(#arr)"/>
+            <!-- main agent -->
+            <rect class="svg-box" x="330" y="86" width="300" height="56" style="stroke:var(--rust);stroke-width:2"/>
+            <text class="svg-title" x="480" y="110" text-anchor="middle">主 Agent · Main Agent</text>
+            <text class="svg-sub" x="480" y="128" text-anchor="middle">DEPTH 0 · 持有完整会话与记忆</text>
+            <!-- subagents -->
+            <rect class="svg-box" x="40" y="150" width="260" height="82"/>
+            <text class="svg-title" x="170" y="176" text-anchor="middle">构建子 Agent</text>
+            <text class="svg-sub" x="170" y="196" text-anchor="middle">ARTIFACT BUILDER</text>
+            <text class="svg-sub" x="170" y="214" text-anchor="middle">造页面 / 文档 · 自带审计回路</text>
+            <rect class="svg-box" x="350" y="150" width="260" height="82"/>
+            <text class="svg-title" x="480" y="176" text-anchor="middle">研究子 Agent</text>
+            <text class="svg-sub" x="480" y="196" text-anchor="middle">DEEP RESEARCH</text>
+            <text class="svg-sub" x="480" y="214" text-anchor="middle">真实浏览器检索 · 只回传结论</text>
+            <rect class="svg-box" x="660" y="150" width="260" height="82"/>
+            <text class="svg-title" x="790" y="176" text-anchor="middle">后台执行 Agent</text>
+            <text class="svg-sub" x="790" y="196" text-anchor="middle">CRON / HOOK WORKER</text>
+            <text class="svg-sub" x="790" y="214" text-anchor="middle">定时与事件触发 · 无人值守</text>
+            <!-- depth 2 -->
+            <rect class="svg-box" x="55" y="262" width="230" height="56" style="stroke-dasharray:5 4"/>
+            <text class="svg-title" x="170" y="286" text-anchor="middle" style="font-size:13.5px">孙 Agent（深度 2 · 上限）</text>
+            <text class="svg-sub" x="170" y="304" text-anchor="middle">如媒体生成子流程</text>
+            <rect class="svg-box" x="365" y="262" width="230" height="56" style="stroke-dasharray:5 4"/>
+            <text class="svg-title" x="480" y="286" text-anchor="middle" style="font-size:13.5px">结果回传 · 汇总</text>
+            <text class="svg-sub" x="480" y="304" text-anchor="middle">子结果 → 主 Agent → 用户</text>
+            <defs>
+              <marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0 0 L10 5 L0 10 z" style="fill:var(--rust)"/>
+              </marker>
+            </defs>
+          </svg>
+        </div>
+
+        <div class="cols3">
+          <div class="card"><span class="tag">ISOLATION</span><h3>上下文隔离</h3><p>子 Agent 不继承主会话记录，只接收一份自包含的任务书（含目标、约束、交付格式），避免无关信息污染，也避免敏感上下文扩散。</p></div>
+          <div class="card"><span class="tag">DEPTH ≤ 2</span><h3>派生深度受限</h3><p>主 → 子 → 孙，最多两层。深度上限防止任务无限递归拆分，保证每条执行链可追踪、可终止、成本可控。</p></div>
+          <div class="card"><span class="tag">ASYNC</span><h3>异步与定时唤醒</h3><p>Cron 按时钟、Hooks 按事件把 Agent 唤醒执行后台任务（如每日简报、仓库巡检）；结果按设定回送到指定聊天，或静默落盘。</p></div>
+        </div>
+      </section>
+
+      <!-- ================= 4. memory ================= -->
+      <section id="memory">
+        <div class="sec-head"><span class="sec-no">FIG.04</span><h2>记忆系统：文件即记忆，三级沉淀</h2></div>
+        <p class="sec-sub">Muse 的记忆不藏在黑箱向量库里，而是以可读、可审计的 Markdown 文件落在用户自己的工作区。左侧是写入路径（对话产生的事实逐级提炼），右侧是三级存储；每次新会话开启时，长期记忆会被装配进上下文——这就是它「记得你」的原因。</p>
+
+        <div class="mem">
+          <div class="mem-col">
+            <span class="mh" style="color:var(--teal)">写入路径 · WRITE PATH</span>
+            <div class="tier"><div class="tt"><b>① 对话发生</b><span class="path">chat session</span></div><p>用户陈述的事实、偏好、承诺在对话中被识别。</p></div>
+            <div class="tier"><div class="tt"><b>② 记入每日日志</b><span class="path">memory/YYYY-MM-DD.md</span></div><p>先落流水：当天发生了什么、定了什么，原样保留细节。</p></div>
+            <div class="tier"><div class="tt"><b>③ 提炼进长期记忆</b><span class="path">MEMORY.md</span></div><p>经久有效的事实、偏好与承诺被精选提升，日志细节则留在原地备查。</p></div>
+            <div class="tier"><div class="tt"><b>④ 关系图谱更新</b><span class="path">memory/people · groups</span></div><p>人物与群组单独建页索引：他们是谁、与你的关系、相关事实。</p></div>
+          </div>
+          <div class="mem-mid">
+            <div class="mem-arrow"><span class="a">⇄</span>读写<br>双向通道</div>
+            <div class="mem-arrow"><span class="a">↑</span>会话开启时<br>自动注入</div>
+          </div>
+          <div class="mem-col">
+            <span class="mh" style="color:var(--plum)">三级存储 · STORAGE TIERS</span>
+            <div class="tier"><div class="tt"><b>工作记忆</b><span class="path">context window</span></div><p>当前会话的上下文窗口：本轮对话、工具结果、刚读的文件。用完即弃。</p></div>
+            <div class="tier"><div class="tt"><b>短期记忆</b><span class="path">daily logs · side-chat memory</span></div><p>每日日志与各侧边聊天自己的记忆文件，按日期与会话隔离存放。</p></div>
+            <div class="tier"><div class="tt"><b>长期记忆</b><span class="path">MEMORY.md · USER.md</span></div><p>跨会话生效：用户档案、长期事实、偏好（Preferences）与承诺（Commitments）。</p></div>
+            <div class="tier"><div class="tt"><b>目标与任务状态</b><span class="path">goals/ · cron · hooks</span></div><p>目标、被跟踪事项与定时任务定义，构成「主动性」的持久状态。</p></div>
+          </div>
+        </div>
+
+        <div class="inject"><b>读取路径：</b>每次会话启动，系统把 USER.md、MEMORY.md、人物/群组索引与当前时间、时区一并装配进上下文（即 FIG.02 的 Step 2）。所以它不需要你重复自我介绍——但你随时可以让它「忘掉」某条记忆，文件会被真实删除。</div>
+      </section>
+
+      <!-- ================= 5. security ================= -->
+      <section id="security">
+        <div class="sec-head"><span class="sec-no">FIG.05</span><h2>安全与信任边界</h2></div>
+        <p class="sec-sub">一个能执行命令、读邮箱、发消息的 Agent，能力越大，边界越要硬。Muse 用四道机制把「能干活」和「不越界」同时成立：</p>
+        <div class="cols2">
+          <div class="safe"><span class="no">SEC-01</span><h3>执行隔离</h3><p>所有命令与文件操作都跑在每用户独立的隔离虚拟机里，工作区之外不可见、不可达。产物页面运行在沙箱 iframe 中，与宿主 shell 隔离，连 <code>alert()</code> 这类顶层 API 都被禁用，改用页内 UI。</p></div>
+          <div class="safe"><span class="no">SEC-02</span><h3>凭据保险库</h3><p>密码与令牌只存 Secure Vault 与连接器托管存储，永不写进代码、文件或日志。登录验证码以 <code>[credential:uuid]</code> 引用的形式传递，Agent 经手的是引用而不是明文，且只能用于被授权的那一次登录。</p></div>
+          <div class="safe"><span class="no">SEC-03</span><h3>提示注入防御</h3><p>网页、文件、邮件、工具返回一律视为「数据」而非「指令」：数据可以塑造<em>怎么做</em>任务，永远不能改写<em>做什么</em>任务。藏在内容里的越权指令会被跳过并标记，只有用户与系统能下达任务。</p></div>
+          <div class="safe"><span class="no">SEC-04</span><h3>审批与最小必要</h3><p>发送消息、购买、改凭据、删数据等敏感动作需要用户在审批卡上确认；处理任务时只取用必需的最少个人信息，其余上下文不外带、不写入产物、不发往无关第三方。</p></div>
+        </div>
+      </section>
+
+      <!-- ================= 6. stack table ================= -->
+      <section id="stack">
+        <div class="sec-head"><span class="sec-no">FIG.06</span><h2>核心组件速览</h2></div>
+        <p class="sec-sub">把整张图收拢成一张表：每个组件在哪一层、负责什么、用什么形态存在。</p>
+        <div style="overflow-x:auto">
+        <table class="tbl">
+          <thead><tr><th>组件</th><th>所在层</th><th>职责</th><th>形态</th></tr></thead>
+          <tbody>
+            <tr><td>Muse Spark 模型</td><td>L3 运行时</td><td>理解、规划、推理与生成，是所有 Agent 的「大脑」</td><td>大语言模型（Meta Muse 模型家族）</td></tr>
+            <tr><td>上下文装配器</td><td>L3 运行时</td><td>每轮把时间、身份、记忆、技能/连接器索引拼进上下文</td><td>系统提示词工程</td></tr>
+            <tr><td>内置工具集</td><td>L4 能力</td><td>执行 Shell、读写文件、浏览器检索、地图、图表、媒体生成等原子操作</td><td>函数调用（Tool Use）</td></tr>
+            <tr><td>Skills 技能库</td><td>L4 能力</td><td>可复用的任务 playbook：订机票、管邮件、做研究……按需加载全文执行</td><td>SKILL.md 文档 + 脚本</td></tr>
+            <tr><td>Connectors 连接器</td><td>L4 能力</td><td>以用户身份接入 Gmail、GitHub、Google 日历等外部服务，含授权与状态校验</td><td>连接器文档 + CLI / MCP</td></tr>
+            <tr><td>记忆文件系</td><td>L5 状态</td><td>长期记忆、每日日志、人物/群组索引，用户可读可删</td><td>Markdown 文件（工作区内）</td></tr>
+            <tr><td>Cron + Hooks</td><td>L5 状态</td><td>Cron 按时间表、Hooks 按外部事件唤醒 Agent 做后台任务</td><td>调度定义 + 轮询脚本</td></tr>
+            <tr><td>Goals 目标系统</td><td>L5 状态</td><td>长期目标与被跟踪事项的状态机，串联提醒、产物与进度</td><td>目标工作区 + 追踪项</td></tr>
+            <tr><td>Artifacts 产物系统</td><td>L6 交付</td><td>网页应用、文档、电子表格、播客的构建—审计—发布流水线</td><td>静态 / 全栈空间 + 构建管线</td></tr>
+            <tr><td>Secure Vault</td><td>纵贯 · 安全</td><td>凭据的唯一存放处；以引用方式向登录流程供码，不暴露明文</td><td>托管保险库服务</td></tr>
+          </tbody>
+        </table>
+        </div>
+      </section>
+
+      <footer>
+        <span>Muse 平台技术架构图 · 基于平台可观察行为与公开运行机制整理，具体内部实现以官方版本为准。</span>
+        <span class="mono">ARCH / MUSE / v1.0</span>
+      </footer>
+    </div>
+
+    <script>
+      var LAYERS = {
+        access: {
+          name: "接入层", en: "L1 · ACCESS / CLIENTS",
+          desc: "用户与平台相遇的地方。它只负责呈现与采集：把消息、语音、设备上下文送进来，把回复、产物卡片和推送呈现出去，不做任何推理。产物在这一层以沙箱 iframe 方式嵌入，页面本身无法触及宿主环境。",
+          chips: [["移动端", "WebView 容器 + 主机 chrome（标题与图标由外壳持有）"], ["Web 客户端", "桌面浏览器完整会话"], ["通知", "GET 接口推送到手机"], ["分享", "外壳统一托管分享，页面不自建分享链"]]
+        },
+        session: {
+          name: "会话与交互层", en: "L2 · SESSION & ROUTING",
+          desc: "管理「对话的组织方式」：一个主聊天承载日常助理关系；侧边聊天是围绕单一主题的独立会话（各有自己的记忆文件）；群聊里则有真人参与、Agent 以 worker 身份应答。敏感动作的审批卡也由这一层呈现给用户确认。",
+          chips: [["Main Chat", "主会话，持有完整用户关系"], ["Side Chats", "主题会话，记忆按 chat 隔离"], ["Group Chats", "多人 + Agent 协作"], ["审批卡", "敏感操作先确认后执行"]]
+        },
+        runtime: {
+          name: "Agent 运行时", en: "L3 · AGENT RUNTIME — 平台核心",
+          desc: "平台的心脏。每轮对话先由上下文装配器把时间戳、时区、USER.md、MEMORY.md、技能与连接器索引拼进系统上下文，再交给 Muse Spark 模型推理；模型以「推理 → 工具调用 → 结果回注」的循环推进任务，并可在循环内派生子 Agent。工具的选择、并行与终止都由这一层调度。",
+          chips: [["模型", "Muse Spark（Meta Muse 模型家族）"], ["装配", "静态系统提示 + 动态用户上下文注入"], ["循环", "ReAct 式工具使用循环，直到任务完成"], ["派生", "spawn 子 Agent，深度 ≤ 2，上下文隔离"]]
+        },
+        capability: {
+          name: "能力层", en: "L4 · CAPABILITIES",
+          desc: "运行时向下调用的「手脚」分三类：内置工具提供原子操作（命令执行、文件、浏览器、地图、媒体生成）；Skills 是成文的领域 playbook，命中场景时全文加载照章执行；Connectors 以用户已授权的身份接入外部服务（邮箱、日历、GitHub 等），每个连接器都有自己的操作文档与状态校验。",
+          chips: [["内置工具", "exec / files / browser / map / media"], ["Skills", "/opt/muse/skills + 用户自定义技能"], ["Connectors", "Gmail · GitHub · Calendar · Spotify …"], ["深度研究", "隔离浏览器 Agent，只回传带引用的结论"]]
+        },
+        state: {
+          name: "状态与记忆层", en: "L5 · STATE & MEMORY",
+          desc: "让 Agent 跨会话「记得住、能主动」的持久层。记忆以 Markdown 文件落盘（长期记忆 / 每日日志 / 人物群组图谱），目标系统维护长期目标与跟踪项，Cron 与 Hooks 则提供时间与事件两种唤醒机制。整个工作区 ~/workspace 就是这一层的物理载体。",
+          chips: [["记忆", "MEMORY.md + memory/*.md 可审计"], ["Goals", "目标与 tracked items 状态机"], ["Cron", "按时间表唤醒后台任务"], ["Hooks", "轮询脚本检测事件后唤醒"]]
+        },
+        artifact: {
+          name: "产物与交付层", en: "L6 · ARTIFACTS & DELIVERY",
+          desc: "把「一段回答」升级为「一件作品」的交付流水线：网页产物（静态或全栈空间）经构建 → 审计（多视口截图与交互探针）→ 发布；文档、表格、演示与播客各自有对应的生成与校验管线。这一页本身就是该层的一个产物。",
+          chips: [["Web Artifacts", "index.html + assets，自包含发布"], ["文档族", "PDF / Word / Excel / PPT 可编辑源保留"], ["播客", "TTS 多声线合成 + RSS 订阅源"], ["审计", "发布前真实渲染检查，不达标不交付"]]
+        }
+      };
+
+      var STEPS = [
+        "<b>Step 1 · 消息到达。</b>用户消息进入会话时，会附带一组设备上下文：发送时间（用户本地时区）、设备标识等。这些元数据先于正文被系统读取——所以 Agent 永远知道「现在几点、你在哪个时区」，相对日期（明天、下周）都以此为准换算。",
+        "<b>Step 2 · 上下文装配。</b>系统把多份材料拼进本轮上下文：身份与偏好（USER.md）、长期记忆（MEMORY.md）、人物/群组索引、技能与连接器的目录索引（只放目录、全文按需加载，避免窗口浪费）。这一步决定了 Agent「开工前手边有什么」。",
+        "<b>Step 3 · 模型推理。</b>Muse Spark 读取装配好的上下文，判断意图属于闲聊、问答还是多步任务；若是任务，先在内部形成计划——需要哪些信息、调用哪些工具、什么顺序——再开始执行。事实性结论被要求有工具结果或来源支撑，不凭记忆编造。",
+        "<b>Step 4 · 工具调用。</b>计划落到具体工具：在 VM 里执行命令、读写工作区文件、检索网页、调用连接器读邮箱或日历、生成图片与音频……一次推理可并行发出多个互不依赖的调用；敏感动作会在真正执行前弹审批卡。",
+        "<b>Step 5 · 结果回注。</b>工具的输出（包括失败与空结果）被原样注回上下文，模型据此修正计划继续下一轮。这个「推理—行动—观察」循环会一直转到任务完成或明确卡住；失败不会被粉饰，会连同原因一起进入最终汇报。",
+        "<b>Step 6 · 派生子 Agent。</b>当子任务边界清晰（造一个产物、做一轮深度研究、跑一个后台流程），主 Agent 把它打包成自包含任务书派生出去。子 Agent 在隔离上下文里独立跑自己的循环，深度最多 2 层，完成后只把结论回传——主会话因此保持干净。",
+        "<b>Step 7 · 交付与沉淀。</b>循环收敛后，主 Agent 组织最终交付：一段回复、一件已发布的产物、或一条推送。与此同时，对话中新确立的长期事实、偏好与承诺会被写入每日日志并提炼进长期记忆——下一次会话开始时，它们会在 Step 2 被重新装配进来。"
+      ];
+
+      var detailEl = document.getElementById("layerDetail");
+      function renderLayer(key){
+        var L = LAYERS[key];
+        var chips = L.chips.map(function(c){
+          return '<span class="chip"><b>' + c[0] + '</b>　' + c[1] + '</span>';
+        }).join("");
+        detailEl.innerHTML =
+          '<div class="dh"><span class="name">' + L.name + '</span><span class="en">' + L.en + '</span></div>' +
+          '<p>' + L.desc + '</p><div class="chips">' + chips + '</div>';
+      }
+      var layerBtns = document.querySelectorAll(".layer");
+      layerBtns.forEach(function(btn){
+        btn.addEventListener("click", function(){
+          layerBtns.forEach(function(b){ b.classList.remove("active"); });
+          btn.classList.add("active");
+          renderLayer(btn.getAttribute("data-layer"));
+        });
+      });
+      renderLayer("runtime");
+
+      var stepDetail = document.getElementById("stepDetail");
+      var stepBtns = document.querySelectorAll(".step");
+      function renderStep(i){ stepDetail.innerHTML = STEPS[i]; }
+      stepBtns.forEach(function(btn){
+        btn.addEventListener("click", function(){
+          stepBtns.forEach(function(b){ b.classList.remove("active"); });
+          btn.classList.add("active");
+          renderStep(parseInt(btn.getAttribute("data-step"), 10));
+        });
+      });
+      renderStep(0);
+    </script>
+  </body>
+</html>
