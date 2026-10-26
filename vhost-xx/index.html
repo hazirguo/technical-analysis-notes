@@ -1,0 +1,815 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="light dark" />
+    <link rel="icon" href="data:," />
+    <title>vhost-xx 设备原理与场景</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet" />
+    <style>
+      :root{
+        --bg:#f2f4f6; --bg2:#e8ecef; --panel:#ffffff; --panel2:#eef1f4;
+        --ink:#131a21; --ink2:#42505c; --ink3:#71808d;
+        --line:#d3dae0; --line2:#bcc7d0;
+        --accent:#c2410c; --accent-soft:#fdeee6; --accent-ink:#9a3412;
+        --teal:#0f766e; --teal-soft:#e2f2f0;
+        --blue:#1d4ed8; --blue-soft:#e4ebfb;
+        --gold:#a16207; --gold-soft:#faf0d7;
+        --code-bg:#10161d; --code-ink:#d7e0e8;
+        --shadow:0 1px 2px rgba(16,24,34,.06),0 8px 24px -12px rgba(16,24,34,.18);
+        --r:10px;
+      }
+      @media (prefers-color-scheme: dark){
+        :root{
+          --bg:#0c1116; --bg2:#0a0e12; --panel:#141b22; --panel2:#182129;
+          --ink:#e6edf2; --ink2:#a7b5c0; --ink3:#75848f;
+          --line:#26313b; --line2:#33424f;
+          --accent:#fb7c3c; --accent-soft:#2b1a10; --accent-ink:#fdba74;
+          --teal:#2dd4bf; --teal-soft:#0e2724;
+          --blue:#7aa5ff; --blue-soft:#16233f;
+          --gold:#eab308; --gold-soft:#2a220c;
+          --code-bg:#080c10; --code-ink:#cfe0ec;
+          --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 28px -12px rgba(0,0,0,.6);
+        }
+      }
+      *{box-sizing:border-box}
+      html{scroll-behavior:smooth}
+      body{margin:0;background:var(--bg);color:var(--ink);
+        font-family:"Noto Sans SC",system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+        font-size:16px;line-height:1.75;-webkit-font-smoothing:antialiased}
+      .mono{font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace}
+      .wrap{max-width:1060px;margin:0 auto;padding:0 20px}
+      a{color:var(--blue)}
+      /* ---------- header ---------- */
+      header{padding:52px 0 8px}
+      .kicker{display:inline-flex;align-items:center;gap:8px;font-size:12.5px;font-weight:700;letter-spacing:.14em;color:var(--accent-ink);
+        background:var(--accent-soft);border:1px solid var(--line);border-radius:999px;padding:4px 12px}
+      .kicker i{width:7px;height:7px;border-radius:50%;background:var(--accent);display:inline-block}
+      h1{font-size:clamp(30px,5.4vw,46px);line-height:1.22;font-weight:900;margin:18px 0 12px;letter-spacing:-.01em}
+      h1 .hl{color:var(--accent)}
+      .lede{font-size:17.5px;color:var(--ink2);max-width:46em;margin:0 0 8px}
+      .lede b{color:var(--ink)}
+      .one-liner{margin:22px 0 4px;padding:16px 20px;background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:6px;box-shadow:var(--shadow);font-size:16.5px}
+      .one-liner .mono{font-size:14px;color:var(--accent-ink);font-weight:700}
+      nav.toc{display:flex;flex-wrap:wrap;gap:8px;margin:26px 0 6px}
+      nav.toc a{font-size:13.5px;font-weight:600;color:var(--ink2);text-decoration:none;border:1px solid var(--line);
+        background:var(--panel);padding:6px 13px;border-radius:999px}
+      nav.toc a:hover{color:var(--accent-ink);border-color:var(--accent)}
+      /* ---------- sections ---------- */
+      section{padding:38px 0 6px}
+      .sec-head{display:flex;align-items:baseline;gap:14px;margin-bottom:6px}
+      .sec-no{font-family:"JetBrains Mono",monospace;font-size:13px;font-weight:700;color:var(--accent);
+        border:1.5px solid var(--accent);border-radius:6px;padding:1px 8px;flex:none;transform:translateY(-2px)}
+      h2{font-size:clamp(22px,3.6vw,29px);font-weight:900;margin:0;line-height:1.3}
+      .sec-sub{color:var(--ink2);margin:6px 0 18px;max-width:52em}
+      h3{font-size:18px;font-weight:800;margin:26px 0 8px}
+      p{margin:10px 0}
+      .panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow)}
+      .note{border:1px dashed var(--line2);border-radius:var(--r);padding:14px 18px;color:var(--ink2);font-size:14.5px;background:var(--panel2)}
+      .note b{color:var(--ink)}
+      code{font-family:"JetBrains Mono",monospace;font-size:.86em;background:var(--panel2);border:1px solid var(--line);
+        border-radius:5px;padding:1px 5px;white-space:nowrap}
+      pre{background:var(--code-bg);color:var(--code-ink);border-radius:var(--r);padding:16px 18px;overflow-x:auto;
+        font-family:"JetBrains Mono",monospace;font-size:13px;line-height:1.7;margin:14px 0}
+      pre .c{color:#7d8fa0} pre .k{color:#f0a35e} pre .f{color:#7dd3a8}
+      ul.tight{margin:8px 0;padding-left:22px} ul.tight li{margin:4px 0}
+      /* ---------- mode lab ---------- */
+      .tabs{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 16px}
+      .tabs button{appearance:none;border:1.5px solid var(--line2);background:var(--panel);color:var(--ink2);
+        font:inherit;font-size:14.5px;font-weight:700;padding:9px 16px;border-radius:8px;cursor:pointer;transition:all .15s}
+      .tabs button:hover{border-color:var(--accent);color:var(--ink)}
+      .tabs button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
+      @media (prefers-color-scheme: dark){ .tabs button[aria-pressed="true"]{color:#16100b} }
+      .lab{padding:20px}
+      .lab svg{width:100%;height:auto;display:block}
+      .lab-grid{display:grid;grid-template-columns:1.25fr 1fr;gap:18px;margin-top:16px}
+      @media (max-width:760px){ .lab-grid{grid-template-columns:1fr} }
+      .steps{list-style:none;margin:0;padding:0;counter-reset:st}
+      .steps li{display:flex;gap:11px;padding:9px 0;border-bottom:1px dashed var(--line);font-size:14.5px;line-height:1.6}
+      .steps li:last-child{border-bottom:none}
+      .steps li::before{counter-increment:st;content:counter(st);flex:none;width:23px;height:23px;border-radius:50%;
+        background:var(--accent-soft);color:var(--accent-ink);font-family:"JetBrains Mono",monospace;font-size:12px;font-weight:700;
+        display:flex;align-items:center;justify-content:center;margin-top:2px}
+      .steps li.flash{animation:flash 1s ease}
+      @keyframes flash{0%{background:var(--accent-soft)}100%{background:transparent}}
+      .chips{display:flex;flex-direction:column;gap:10px}
+      .chip{border:1px solid var(--line);border-radius:8px;padding:10px 14px;background:var(--panel2)}
+      .chip .k{font-size:12px;font-weight:700;letter-spacing:.08em;color:var(--ink3)}
+      .chip .v{font-size:19px;font-weight:900;line-height:1.35}
+      .chip .d{font-size:12.5px;color:var(--ink2);line-height:1.55}
+      .bar{height:7px;border-radius:99px;background:var(--line);margin-top:7px;overflow:hidden}
+      .bar i{display:block;height:100%;border-radius:99px;background:var(--accent);transition:width .5s ease}
+      .playrow{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:14px}
+      .btn{appearance:none;border:none;background:var(--ink);color:var(--bg);font:inherit;font-weight:700;font-size:14.5px;
+        padding:10px 20px;border-radius:8px;cursor:pointer}
+      .btn:hover{opacity:.88}
+      .btn.ghost{background:transparent;color:var(--ink);border:1.5px solid var(--line2)}
+      .play-hint{font-size:13px;color:var(--ink3)}
+      /* ---------- ring lab ---------- */
+      .ring-lab{padding:20px}
+      .ring-fig{display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start}
+      @media (max-width:760px){ .ring-fig{grid-template-columns:1fr} }
+      .slots{display:flex;gap:7px;flex-wrap:wrap;margin:8px 0 4px}
+      .slot{width:44px;height:52px;border:1.5px solid var(--line2);border-radius:7px;display:flex;flex-direction:column;
+        align-items:center;justify-content:center;font-family:"JetBrains Mono",monospace;background:var(--panel);transition:all .3s}
+      .slot .n{font-size:10px;color:var(--ink3)}
+      .slot .s{font-size:12px;font-weight:700}
+      .slot.full{border-color:var(--accent);background:var(--accent-soft)}
+      .slot.used-done{border-color:var(--teal);background:var(--teal-soft)}
+      .ring-label{font-size:13px;font-weight:800;letter-spacing:.05em;color:var(--ink2)}
+      .desc-box{border:1.5px dashed var(--line2);border-radius:8px;padding:12px 14px;font-family:"JetBrains Mono",monospace;font-size:12.5px;line-height:1.9;min-height:118px;background:var(--panel2)}
+      .desc-box .hl2{color:var(--accent-ink);font-weight:700}
+      .ring-log{font-size:13.5px;color:var(--ink2);min-height:44px;border-top:1px dashed var(--line);padding-top:10px;margin-top:6px}
+      /* ---------- stepper ---------- */
+      .stepper{display:grid;grid-template-columns:250px 1fr;gap:0;border-radius:var(--r);overflow:hidden}
+      @media (max-width:760px){ .stepper{grid-template-columns:1fr} }
+      .step-list{display:flex;flex-direction:column;background:var(--panel2);border-right:1px solid var(--line)}
+      @media (max-width:760px){ .step-list{flex-direction:row;flex-wrap:wrap;border-right:none;border-bottom:1px solid var(--line)} .step-list button{flex:1 1 44%} }
+      .step-list button{appearance:none;border:none;background:transparent;font:inherit;text-align:left;padding:13px 16px;cursor:pointer;
+        font-size:14px;font-weight:600;color:var(--ink2);border-left:3px solid transparent}
+      .step-list button .mono{font-size:11.5px;color:var(--ink3);display:block;font-weight:400;overflow-wrap:anywhere}
+      .step-list button[aria-pressed="true"]{background:var(--panel);color:var(--ink);border-left-color:var(--accent)}
+      .step-body{padding:20px 22px}
+      .step-body h3{margin-top:0}
+      .step-nav{display:flex;gap:10px;margin-top:16px}
+      /* ---------- family ---------- */
+      .fam-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
+      .fam{padding:18px 18px 14px;display:flex;flex-direction:column;gap:6px}
+      .fam .name{font-family:"JetBrains Mono",monospace;font-weight:700;font-size:17px}
+      .fam .dev{font-family:"JetBrains Mono",monospace;font-size:12px;color:var(--ink3)}
+      .fam .tag{align-self:flex-start;font-size:11.5px;font-weight:700;padding:2px 9px;border-radius:99px;letter-spacing:.04em}
+      .tag.k{background:var(--blue-soft);color:var(--blue)} .tag.u{background:var(--accent-soft);color:var(--accent-ink)}
+      .tag.h{background:var(--gold-soft);color:var(--gold)} .tag.t{background:var(--teal-soft);color:var(--teal)}
+      .fam p{font-size:14px;color:var(--ink2);margin:2px 0}
+      .fam .ex{font-size:12.5px;color:var(--ink3);border-top:1px dashed var(--line);padding-top:8px;margin-top:auto}
+      /* ---------- chart ---------- */
+      .chart-box{padding:20px}
+      .legend{display:flex;flex-wrap:wrap;gap:16px;font-size:13px;color:var(--ink2);margin-bottom:8px}
+      .legend i{width:12px;height:12px;border-radius:3px;display:inline-block;vertical-align:-1px;margin-right:5px}
+      /* ---------- scenario ---------- */
+      .scn-body{padding:20px 22px}
+      .scn-body h3{margin-top:0}
+      .scn-cols{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+      @media (max-width:760px){ .scn-cols{grid-template-columns:1fr} }
+      .scn-cols h4{margin:0 0 6px;font-size:14px;letter-spacing:.05em;color:var(--ink3)}
+      .fit{display:inline-block;font-size:12px;font-weight:700;border-radius:99px;padding:2px 10px;background:var(--teal-soft);color:var(--teal)}
+      /* ---------- table ---------- */
+      .tbl-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--r);background:var(--panel);box-shadow:var(--shadow)}
+      table{border-collapse:collapse;width:100%;min-width:640px;font-size:14px}
+      th,td{padding:11px 14px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
+      th{background:var(--panel2);font-size:12.5px;letter-spacing:.05em;color:var(--ink2)}
+      tr:last-child td{border-bottom:none}
+      @media (max-width:640px){
+        table{min-width:0}
+        thead{display:none}
+        tr.tbl-head{display:none}
+        tr{display:block;padding:8px 0;border-bottom:1px solid var(--line)}
+        tr:last-child{border-bottom:none}
+        td{display:block;border-bottom:none;padding:5px 14px}
+        td:first-child{padding-top:10px}
+      }
+      td .mono{font-size:12.5px}
+      /* ---------- decision ---------- */
+      .quiz{padding:20px 22px}
+      .q{margin-bottom:16px}
+      .q .qt{font-weight:800;margin-bottom:8px}
+      .opts{display:flex;flex-wrap:wrap;gap:8px}
+      .opts button{appearance:none;border:1.5px solid var(--line2);background:var(--panel);color:var(--ink2);font:inherit;
+        font-size:14px;font-weight:600;padding:8px 15px;border-radius:8px;cursor:pointer}
+      .opts button[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+      .verdict{border:1.5px solid var(--teal);background:var(--teal-soft);border-radius:8px;padding:14px 18px;font-size:15px;display:none}
+      .verdict.show{display:block}
+      .verdict .mono{font-weight:700}
+      footer{padding:44px 0 60px;color:var(--ink3);font-size:13px}
+      .src{border-top:1px solid var(--line);padding-top:14px;line-height:2}
+      @media (prefers-reduced-motion: reduce){
+        html{scroll-behavior:auto}
+        *{animation-duration:.001s !important;transition-duration:.001s !important}
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header>
+        <span class="kicker"><i></i>LINUX 虚拟化 · VIRTIO 数据面加速</span>
+        <h1>vhost 家族：把 virtio 的<span class="hl">数据面</span><br />搬出 QEMU 的那一类设备</h1>
+        <p class="lede">你在 QEMU / KVM 里见过 <span class="mono">vhost-net</span>、在 DPDK 里见过 <span class="mono">vhost-user</span>、在沙箱里见过 <span class="mono">vhost-vsock</span>——这一类以 <b>vhost-*</b> 命名的设备不是某种具体硬件，而是同一种思想的不同落点：<b>virtio 的控制面留在模拟器里，数据面交给更靠近数据的地方执行</b>。这一页把它们的工作原理、建立流程和适用场景一次讲透。</p>
+        <div class="one-liner">一句话定义：<span class="mono">vhost = virtio 数据面卸载框架</span> —— 描述符环（virtqueue）仍由 Guest 内存承载，但「谁来消费队列、搬数据、发中断」从 QEMU 用户态换成了内核线程、独立进程（DPDK/SPDK），乃至网卡硬件。</div>
+        <nav class="toc">
+          <a href="#why">① 为什么要 vhost</a>
+          <a href="#lab">② 数据面路径实验室</a>
+          <a href="#ring">③ virtqueue 解剖</a>
+          <a href="#setup">④ 建立流程</a>
+          <a href="#family">⑤ 家族图鉴</a>
+          <a href="#copies">⑥ 拷贝账</a>
+          <a href="#scenarios">⑦ 应用场景</a>
+          <a href="#choose">⑧ 选型与局限</a>
+        </nav>
+      </header>
+
+      <!-- ================= 1 why ================= -->
+      <section id="why">
+        <div class="sec-head"><span class="sec-no">01</span><h2>先说清楚：纯 virtio 慢在哪</h2></div>
+        <p class="sec-sub">virtio 本身是一套前后端契约：Guest 里的前端驱动（如 <code>virtio_net</code>）把要发送的数据包地址写进共享内存中的队列，后端（模拟器）取走处理。问题是当后端是 QEMU 用户态进程时，每一个包都要付三笔税：</p>
+        <div class="fam-grid">
+          <div class="panel fam">
+            <div class="name" style="font-family:inherit">税一 · VM Exit</div>
+            <p>Guest 写队列通知寄存器（kick）会触发一次 VM Exit，CPU 从 Guest 模式陷入宿主机，QEMU 被调度醒来才知道「有活干了」。收包方向则反过来，QEMU 要通过 KVM 注入虚拟中断。</p>
+          </div>
+          <div class="panel fam">
+            <div class="name" style="font-family:inherit">税二 · 进程调度与上下文切换</div>
+            <p>QEMU 是普通用户进程：包的旅程是 Guest → 内核 → QEMU 用户态 → 内核（TAP）→ 物理网卡，每跳都可能被调度器晾在一边，高 PPS 下延迟抖动明显。</p>
+          </div>
+          <div class="panel fam">
+            <div class="name" style="font-family:inherit">税三 · 多余的数据拷贝</div>
+            <p>以 TAP 收包为例，QEMU 要先把包 read 进自己的缓冲区，再拷进 Guest 内存——RX 方向凭空多一次全包拷贝（下一节有逐包的账）。</p>
+          </div>
+        </div>
+        <p style="margin-top:16px">vhost 的解法不动契约、只换执行者：<b>队列格式、描述符语义、特性协商全部照旧</b>，Guest 驱动甚至不知道后端换了人；变的是消费队列的代码运行在哪里——内核里（vhost-net）、另一个用户进程里（vhost-user）、或者网卡硬件里（vDPA）。QEMU 退居二线，只负责启动时的配置下发和热迁移等控制面事务。</p>
+        <div class="note"><b>关键前提：</b>Guest 的物理内存对后端必须可达。virtqueue 和数据缓冲都在 Guest RAM 里，后端要能把 Guest 物理地址（GPA）翻译成自己能访问的地址——这是后面 <code>VHOST_SET_MEM_TABLE</code> 和 vhost-user 必须共享内存（<code>memfd</code>／大页）的根本原因。</div>
+      </section>
+
+      <!-- ================= 2 lab ================= -->
+      <section id="lab">
+        <div class="sec-head"><span class="sec-no">02</span><h2>数据面路径实验室：一个包的四种旅程</h2></div>
+        <p class="sec-sub">下面是同一个场景——<b>Guest 发出一个以太网帧</b>——在四种后端下的路径。切换模式后点「播放」，跟着数据包走一遍，并对比右侧的代价账单。四种模式 Guest 侧代码完全一致，变的只有后端。</p>
+        <div class="tabs" id="modeTabs" role="group" aria-label="后端模式切换"></div>
+        <div class="panel lab">
+          <svg id="pathSvg" viewBox="0 0 980 330" role="img" aria-label="数据包路径示意图"></svg>
+          <div class="playrow">
+            <button class="btn" id="playBtn">▶ 播放发包过程</button>
+            <button class="btn ghost" id="stepBtn">单步执行</button>
+            <span class="play-hint" id="playHint">播放会依次高亮每个节点，并在下方解说当前步骤。</span>
+          </div>
+          <div class="lab-grid">
+            <ol class="steps" id="stepList"></ol>
+            <div class="chips" id="chipBox"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= 3 ring ================= -->
+      <section id="ring">
+        <div class="sec-head"><span class="sec-no">03</span><h2>virtqueue 解剖：三种后端共享的同一种队列</h2></div>
+        <p class="sec-sub">无论后端是谁，Guest 与后端之间只通过三块共享内存结构通信。点下面的按钮，模拟一次「Guest 投递两个发送请求 → 后端消费 → 回写完成」：</p>
+        <div class="panel ring-lab">
+          <div class="ring-fig">
+            <div>
+              <div class="ring-label">描述符表 DESCRIPTOR TABLE（addr / len / flags / next）</div>
+              <div class="slots" id="descSlots"></div>
+              <div class="ring-label" style="margin-top:14px">可用环 AVAIL RING（Guest 写 idx → 后端读：这些描述符是给你的）</div>
+              <div class="slots" id="availSlots"></div>
+              <div class="ring-label" style="margin-top:14px">已用环 USED RING（后端写 idx → Guest 读：这些处理完了）</div>
+              <div class="slots" id="usedSlots"></div>
+            </div>
+            <div>
+              <div class="ring-label">当前描述符内容</div>
+              <div class="desc-box" id="descBox">（空）点击「Guest 投递」后，这里会显示被占用的描述符字段。</div>
+              <div class="playrow">
+                <button class="btn" id="pushBtn">① Guest 投递 2 个描述符</button>
+                <button class="btn ghost" id="consumeBtn">② 后端消费并回写</button>
+                <button class="btn ghost" id="ringResetBtn">重置</button>
+              </div>
+              <div class="ring-log" id="ringLog">提示：kick 通知（写 doorbell / eventfd）只是「按门铃」，真正的数据从不经过通知通道——后端是自己去环里取的。所以 kick 可以合并、可以丢弃重复，队列状态本身才是事实来源。</div>
+            </div>
+          </div>
+        </div>
+        <h3>通知机制：eventfd 组成的「门铃 + 回铃」</h3>
+        <ul class="tight">
+          <li><b>Kick（Guest → 后端）：</b>Guest 驱动写 virtio 通知区，QEMU/后端把这动作转成对一个 <code>eventfd</code> 的写。后端（内核线程或 DPDK 轮询）由此得知队列有新元素——vhost-user/DPDK 场景干脆轮询环的 idx，连门铃都省了。</li>
+          <li><b>Call（后端 → Guest）：</b>后端处理完后写另一个 <code>eventfd</code>，它在 KVM 里注册为 <code>irqfd</code>，直接由内核注入虚拟中断，绕过 QEMU。</li>
+          <li><b>抑制优化：</b><code>VRING_AVAIL_F_NO_INTERRUPT</code> / <code>VRING_USED_F_NO_NOTIFY</code> 标志位让双方在批量处理时互相少按门铃，这是高吞吐下不靠中断风暴的关键。</li>
+        </ul>
+      </section>
+
+      <!-- ================= 4 setup ================= -->
+      <section id="setup">
+        <div class="sec-head"><span class="sec-no">04</span><h2>建立流程：后端是怎么「接班」的</h2></div>
+        <p class="sec-sub">以 vhost-net 为例，QEMU 在启动时通过对 <code>/dev/vhost-net</code> 的一系列 ioctl 把队列的控制权移交内核；vhost-user 则是把等价的一组消息通过 Unix socket 发给后端进程。逐步点击查看每一步在做什么：</p>
+        <div class="panel stepper">
+          <div class="step-list" id="setupList"></div>
+          <div class="step-body">
+            <h3 id="setupTitle"></h3>
+            <div id="setupCode"></div>
+            <p id="setupDesc" style="color:var(--ink2)"></p>
+            <div class="step-nav">
+              <button class="btn ghost" id="setupPrev">← 上一步</button>
+              <button class="btn" id="setupNext">下一步 →</button>
+            </div>
+          </div>
+        </div>
+        <p style="margin-top:14px">移交完成后，QEMU 里会留下一个专职的 <b>vhost worker 内核线程</b>（<span class="mono">vhost-&lt;pid&gt;</span>）：它阻塞在 kick eventfd 上，被唤醒后遍历 avail 环、把包从 Guest 内存搬到绑定的 TAP 设备（TX），或反向搬运（RX），再写 used 环并通过 call eventfd 触发中断注入。整个热路径上，QEMU 用户态不再出现。</p>
+      </section>
+
+      <!-- ================= 5 family ================= -->
+      <section id="family">
+        <div class="sec-head"><span class="sec-no">05</span><h2>家族图鉴：vhost-xx 们各是谁</h2></div>
+        <p class="sec-sub">命名规则很直白：<span class="mono">vhost-&lt;设备类型&gt;</span>。按数据面执行位置分四类——内核、外部进程、硬件，以及一个特殊的「宿主通信」成员：</p>
+        <div class="fam-grid" id="famGrid"></div>
+      </section>
+
+      <!-- ================= 6 copies ================= -->
+      <section id="copies">
+        <div class="sec-head"><span class="sec-no">06</span><h2>拷贝账：性能差异最直观的一把尺</h2></div>
+        <p class="sec-sub">「快多少」受包长、特性协商、机器配置影响很大，空泛的倍数没有意义；但<b>每个包被整包拷贝几次</b>是体系结构决定的、可核查的事实。下图是 TAP 网络场景下已核实的拷贝次数（QEMU/Cloud Hypervisor 的 TAP 路径与内核 vhost-net 源码级结论）：</p>
+        <div class="panel chart-box">
+          <div class="legend">
+            <span><i style="background:var(--accent)"></i>TX（Guest → 网卡）拷贝次数</span>
+            <span><i style="background:var(--teal)"></i>RX（网卡 → Guest）拷贝次数</span>
+          </div>
+          <svg id="copyChart" viewBox="0 0 940 300" role="img" aria-label="各后端每包拷贝次数对比图" style="width:100%;height:auto"></svg>
+          <ul class="tight" style="margin-top:10px">
+            <li><b>纯 QEMU + TAP：</b>TX 时 iovec 直指 Guest 内存、<code>writev</code> 由内核拷进 skb，1 次；RX 时 QEMU 先 <code>read</code> 进自有缓冲、再拷进 Guest，2 次——多出的那次来自 QEMU 通用 NetClient 抽象要求后端先把包读进自己的缓冲再分发。</li>
+            <li><b>vhost-net（默认 copy 模式）：</b>内核线程在 Guest 内存与 skb 之间直接搬运，TX/RX 各 1 次，且省掉了 QEMU 的调度与 VM Exit 往返。其可选的零拷贝 TX（模块参数 <code>experimental_zcopytx</code>）默认关闭——省拷贝要付出完成通知与缓冲回收复杂度的代价，社区多年未将其转正。</li>
+            <li><b>vhost-user + DPDK：</b>后端把 Guest 内存当作自己的 mbuf 池，网卡 DMA 直达 Guest 缓冲，0 次拷贝；代价是必须大页/共享内存、CPU 轮询忙等。</li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- ================= 7 scenarios ================= -->
+      <section id="scenarios">
+        <div class="sec-head"><span class="sec-no">07</span><h2>应用场景：什么时候用哪一个</h2></div>
+        <p class="sec-sub">选后端本质上是选「数据面离数据多近、愿意付什么代价」。下面六个真实场景覆盖了 vhost 家族的主要落点：</p>
+        <div class="tabs" id="scnTabs" role="group" aria-label="场景切换"></div>
+        <div class="panel scn-body">
+          <h3 id="scnTitle"></h3>
+          <p id="scnDesc" style="color:var(--ink2)"></p>
+          <div class="scn-cols">
+            <div><h4>为什么选它</h4><ul class="tight" id="scnWhy"></ul></div>
+            <div><h4>要付的代价 / 注意点</h4><ul class="tight" id="scnCost"></ul></div>
+          </div>
+          <p style="margin-top:14px">典型组合：<span class="fit" id="scnFit"></span></p>
+        </div>
+      </section>
+
+      <!-- ================= 8 choose ================= -->
+      <section id="choose">
+        <div class="sec-head"><span class="sec-no">08</span><h2>选型速判与共同的局限</h2></div>
+        <p class="sec-sub">回答两个问题，得到一个起点建议（最终仍要以你的 PPS、延迟目标和运维能力为准）：</p>
+        <div class="panel quiz">
+          <div class="q"><div class="qt">Q1 · 你的数据面瓶颈主要在哪？</div>
+            <div class="opts" id="q1">
+              <button data-v="gen">通用云主机网络，够用就好</button>
+              <button data-v="pps">线速小包 / NFV 级 PPS</button>
+              <button data-v="blk">块存储 IO 延迟</button>
+              <button data-v="comm">宿主 ↔ Guest 通信通道</button>
+            </div>
+          </div>
+          <div class="q"><div class="qt">Q2 · 你能接受为性能付出的运维代价是？</div>
+            <div class="opts" id="q2">
+              <button data-v="low">尽量零改动、保持可热迁移</button>
+              <button data-v="high">可以上大页、绑核、独占 CPU 轮询</button>
+              <button data-v="hw">有 SmartNIC / DPU 可以用</button>
+            </div>
+          </div>
+          <div class="verdict" id="verdict"></div>
+        </div>
+        <h3>所有 vhost 方案共同的账</h3>
+        <div class="tbl-wrap">
+          <table>
+            <tr class="tbl-head"><th style="width:24%">议题</th><th>说明</th></tr>
+            <tr><td><b>后端即全权代理</b></td><td>后端能读写全部 Guest 内存（这是它干活的前提）。vhost-user 后端进程一旦被攻破，等同于拿下 Guest——选型时要把后端纳入可信计算基，DPDK/SPDK 进程的隔离与最小权限不能省。</td></tr>
+            <tr><td><b>热迁移要对齐特性</b></td><td>迁移前后端协商出的特性集（如可合并 RX 缓冲、多队列数）必须兼容；vhost-user 的后端状态不在 Guest 内存里，迁移/快照时要后端自己配合（如 OVS-DPDK 的连接状态、SPDK 的卷状态）。</td></tr>
+            <tr><td><b>快照与恢复的边界</b></td><td>以沙箱场景为例：vhost-user 后端的状态不进内存快照，恢复目标机上后端必须先就位；Cloud Hypervisor 还因此把 vhost-user 设备的恢复模式锁定为整内存预拷贝（eager），不支持按需懒恢复。</td></tr>
+            <tr><td><b>共享内存是硬门槛</b></td><td>vhost-user 要求 Guest 内存以共享方式映射（<code>shared=on</code> / 大页），与内存加密型机密虚拟机（SEV-SNP 等明文共享受限场景）、内存超分等特性存在天然张力，需要逐项确认兼容性。</td></tr>
+            <tr><td><b>排障可观测性变差</b></td><td>数据面离开 QEMU 后，<code>tcpdump</code> 抓点、计数、限速的位置都随之后移：vhost-net 看 TAP 口，vhost-user 要看后端（OVS-DPDK/SPDK）自己的统计与工具链。</td></tr>
+          </table>
+        </div>
+      </section>
+
+      <footer>
+        <div class="src">
+          内容依据：Linux 内核 vhost 子系统与 QEMU vhost 实现的公开机制；拷贝次数结论来自对 QEMU <span class="mono">net/tap.c</span>、Cloud Hypervisor <span class="mono">net_util</span> 队列处理与内核 <span class="mono">drivers/vhost/net.c</span> 的源码核对。文中只给出体系结构层面可核查的拷贝/路径结论，未引用任何特定机器的跑分数字。
+        </div>
+      </footer>
+    </div>
+
+    <script>
+    /* ================= 路径实验室 ================= */
+    var MODES = {
+      qemu: {
+        label: "纯 virtio（QEMU 用户态）",
+        nodes: [
+          {id:"guest", x:70,  y:60,  w:170, t:"Guest", s:"virtio_net 驱动", ring:true},
+          {id:"exit",  x:330, y:60,  w:150, t:"VM Exit", s:"kick 触发陷入"},
+          {id:"qemu",  x:570, y:60,  w:170, t:"QEMU", s:"用户态模拟后端"},
+          {id:"tap",   x:570, y:215, w:170, t:"TAP 设备", s:"内核 tun/tap"},
+          {id:"nic",   x:330, y:215, w:150, t:"物理网卡", s:"经宿主协议栈/桥"}
+        ],
+        path: ["guest","exit","qemu","tap","nic"],
+        steps: [
+          "Guest 驱动把帧的地址/长度写进描述符表，在 avail 环压入描述符下标，更新 idx。",
+          "驱动写 virtio 通知区（kick）→ 触发 VM Exit，vCPU 线程被 KVM 唤醒转交 QEMU。",
+          "QEMU 的 NetClient 从环里取描述符，把包先读拼到自己的接收/发送缓冲（用户态中转）。",
+          "QEMU 对 TAP fd 执行 write()，陷入内核，包被拷进 skb 送入虚拟网桥/协议栈。",
+          "物理网卡发出；回程方向 QEMU 还要再 poll TAP 可读、注入虚拟中断通知 Guest。",
+          "小结：每个包至少两次模式/进程边界穿越 + QEMU 调度延迟，RX 方向多一次整包拷贝。"
+        ],
+        chips: [
+          {k:"数据面执行者", v:"QEMU 用户进程", d:"与 vCPU 抢 CPU，靠操作系统调度", bar:30},
+          {k:"每包 VM Exit", v:"kick 必触发", d:"另加中断注入往返", bar:85},
+          {k:"整包拷贝（TX / RX）", v:"1 次 / 2 次", d:"RX 多一次 QEMU 自有缓冲中转", bar:70},
+          {k:"适用", v:"兼容性优先", d:"任何环境可跑，性能上限最低", bar:25}
+        ]
+      },
+      vhostnet: {
+        label: "vhost-net（内核后端）",
+        nodes: [
+          {id:"guest", x:70,  y:60,  w:170, t:"Guest", s:"virtio_net 驱动", ring:true},
+          {id:"wk",    x:330, y:60,  w:170, t:"vhost worker", s:"内核线程 vhost-<pid>"},
+          {id:"tap",   x:590, y:60,  w:170, t:"TAP 设备", s:"后端直接绑定"},
+          {id:"nic",   x:590, y:215, w:170, t:"物理网卡", s:"经宿主网桥/协议栈"},
+          {id:"qemu2", x:330, y:215, w:170, t:"QEMU", s:"只剩控制面（旁观）", dim:true}
+        ],
+        path: ["guest","wk","tap","nic"],
+        steps: [
+          "Guest 驱动照常写描述符表 + avail 环——它根本不知道后端已经换人。",
+          "驱动写通知区，QEMU 预先注册的 kick eventfd 被置位，不再需要 vCPU 线程经手数据。",
+          "内核 vhost worker 线程被 eventfd 唤醒，直接按 MEM_TABLE 翻译地址，遍历 avail 环取描述符。",
+          "worker 在 Guest 内存与 skb 之间直接搬运（TX），write 到已绑定的 TAP 设备，全程不回用户态。",
+          "处理完写 used 环，触发 call eventfd → KVM irqfd 直接注入虚拟中断给 Guest。",
+          "小结：QEMU 只在启动时用 ioctl 移交队列；热路径 = Guest ↔ 内核线程 ↔ TAP。"
+        ],
+        chips: [
+          {k:"数据面执行者", v:"内核 vhost 线程", d:"随 /dev/vhost-net 由 QEMU 托管生命周期", bar:65},
+          {k:"每包 VM Exit", v:"数据面 0 次", d:"kick/call 走 eventfd + irqfd 旁路", bar:15},
+          {k:"整包拷贝（TX / RX）", v:"1 次 / 1 次", d:"默认 copy 模式；零拷贝 TX 默认关闭", bar:45},
+          {k:"适用", v:"通用云主机默认", d:"KVM 发行版默认开启，兼顾迁移与性能", bar:70}
+        ]
+      },
+      vhostuser: {
+        label: "vhost-user（DPDK 进程）",
+        nodes: [
+          {id:"guest", x:70,  y:60,  w:170, t:"Guest", s:"virtio_net 驱动", ring:true},
+          {id:"mem",   x:330, y:60,  w:170, t:"共享 Guest 内存", s:"大页 / memfd 映射"},
+          {id:"dpdk",  x:590, y:60,  w:170, t:"OVS-DPDK", s:"vhost-user 后端进程"},
+          {id:"nic",   x:590, y:215, w:170, t:"物理网卡", s:"DPDK PMD 直控"},
+          {id:"qemu2", x:330, y:215, w:170, t:"QEMU / VMM", s:"socket 协商后旁观", dim:true}
+        ],
+        path: ["guest","mem","dpdk","nic"],
+        steps: [
+          "启动时 VMM 通过 Unix socket 用 VHOST_USER_* 消息把内存表（含 RAM 的 fd）和队列参数发给后端。",
+          "Guest 驱动写描述符 + avail 环——内存本身已映射进后端地址空间，无需任何通知后端也能看见。",
+          "DPDK 的 PMD 线程忙轮询 avail 环 idx，发现新描述符立即取走（不等待 kick、不进内核）。",
+          "后端把 Guest 缓冲直接当 mbuf 用：网卡 DMA 把帧写入/读出 Guest 内存，零拷贝完成收发。",
+          "回写 used 环；需要通知时才写 call eventfd 让 KVM 注入中断，也可完全靠 Guest 侧轮询（NAPI）。",
+          "小结：数据面 = 两个进程共享内存 + 用户态轮询，内核只剩网卡驱动之外的旁观者。"
+        ],
+        chips: [
+          {k:"数据面执行者", v:"独立后端进程", d:"DPDK / SPDK，独占绑核轮询", bar:95},
+          {k:"每包 VM Exit", v:"0 次", d:"连 kick 都可省：轮询环 idx", bar:5},
+          {k:"整包拷贝（TX / RX）", v:"0 次 / 0 次", d:"DMA 直达 Guest 缓冲", bar:5},
+          {k:"适用", v:"NFV / 线速小包", d:"代价：大页、绑核、后端状态迁移复杂", bar:90}
+        ]
+      },
+      vdpa: {
+        label: "vDPA（硬件数据面）",
+        nodes: [
+          {id:"guest", x:70,  y:60,  w:170, t:"Guest", s:"virtio_net 驱动", ring:true},
+          {id:"iommu", x:330, y:60,  w:170, t:"IOMMU", s:"GPA → 宿主物理地址"},
+          {id:"nic",   x:590, y:60,  w:170, t:"SmartNIC / DPU", s:"硬件实现 virtqueue"},
+          {id:"net",   x:590, y:215, w:170, t:"物理网络", s:"线速转发"},
+          {id:"ctrl",  x:330, y:215, w:170, t:"vhost-vdpa", s:"内核控制面 /dev/vhost-vdpa", dim:true}
+        ],
+        path: ["guest","iommu","nic","net"],
+        steps: [
+          "控制面仍走 vhost 语义：VMM 经 /dev/vhost-vdpa 把队列地址、内存表下发给网卡硬件。",
+          "Guest 驱动写描述符 + avail 环，内存经 IOMMU 映射对网卡可见。",
+          "网卡硬件自己读 avail 环、按描述符 DMA 搬运帧——CPU 完全不参与数据面。",
+          "完成时硬件写 used 环并经 MSI-X 向 Guest 注入中断，行为与真实 virtio 网卡无异。",
+          "热迁移时硬件队列状态难以导出，QEMU 用影子 virtqueue（SVQ）在软件里镜像一份队列来跟踪脏页与状态。",
+          "小结：直通级的性能与 CPU 占用，保留 virtio 的可移植性；代价是硬件依赖与迁移复杂度。"
+        ],
+        chips: [
+          {k:"数据面执行者", v:"网卡硬件", d:"SmartNIC / DPU 内置 virtio 引擎", bar:100},
+          {k:"每包 VM Exit", v:"0 次", d:"硬件直读队列 + DMA", bar:3},
+          {k:"整包拷贝（TX / RX）", v:"0 次 / 0 次", d:"DMA 直达，无 CPU 参与", bar:3},
+          {k:"适用", v:"云厂商卸载", d:"宿主 CPU 归零，换硬件绑定与 SVQ 迁移成本", bar:85}
+        ]
+      }
+    };
+    var curMode = "qemu", playTimer = null, playIdx = -1;
+
+    function nodeById(m, id){ for (var i=0;i<m.nodes.length;i++) if (m.nodes[i].id===id) return m.nodes[i]; return null; }
+    function renderSvg(){
+      var m = MODES[curMode], s = "";
+      // links along path
+      for (var i=0;i<m.path.length-1;i++){
+        var a = nodeById(m, m.path[i]), b = nodeById(m, m.path[i+1]);
+        var x1=a.x+a.w, y1=a.y+34, x2=b.x, y2=b.y+34;
+        if (b.x < a.x) { x1=a.x; x2=b.x+b.w; }
+        if (Math.abs(b.y-a.y) > 40) { x1=a.x+a.w/2; y1=a.y+68; x2=b.x+b.w/2; y2=b.y; if (b.y<a.y){y1=a.y;y2=b.y+68;} }
+        s += '<line class="lk" data-i="'+i+'" x1="'+x1+'" y1="'+y1+'" x2="'+x2+'" y2="'+y2+'" stroke="var(--line2)" stroke-width="2.5" marker-end="url(#arr)"/>';
+      }
+      s += '<defs><marker id="arr" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="var(--line2)"/></marker></defs>';
+      // packet dot (hidden until play)
+      m.nodes.forEach(function(n){
+        var active = (playIdx>=0 && m.path[playIdx]===n.id);
+        s += '<g class="nd" data-id="'+n.id+'" opacity="'+(n.dim?0.55:1)+'">'
+          + '<rect x="'+n.x+'" y="'+n.y+'" width="'+n.w+'" height="68" rx="10" fill="'+(active?"var(--accent-soft)":"var(--panel2)")+'" stroke="'+(active?"var(--accent)":"var(--line2)")+'" stroke-width="'+(active?2.5:1.5)+'"/>'
+          + '<text x="'+(n.x+n.w/2)+'" y="'+(n.y+28)+'" text-anchor="middle" font-size="15.5" font-weight="700" fill="var(--ink)">'+n.t+'</text>'
+          + '<text x="'+(n.x+n.w/2)+'" y="'+(n.y+50)+'" text-anchor="middle" font-size="11.5" fill="var(--ink3)">'+n.s+'</text></g>';
+      });
+      if (playIdx>=0 && playIdx<m.path.length){
+        var pn = nodeById(m, m.path[playIdx]);
+        s += '<circle id="pkt" cx="'+(pn.x+pn.w-16)+'" cy="'+(pn.y+14)+'" r="7" fill="var(--accent)" stroke="var(--panel)" stroke-width="2"/>';
+      }
+      s += '<text x="70" y="318" font-size="12.5" fill="var(--ink3)">实线箭头 = 一个发送帧的实际路径；半透明节点 = 只参与控制面，不经手数据。</text>';
+      document.getElementById("pathSvg").innerHTML = s;
+    }
+    function renderSteps(){
+      var m = MODES[curMode];
+      var ol = document.getElementById("stepList"); ol.innerHTML = "";
+      m.steps.forEach(function(t, i){
+        var li = document.createElement("li"); li.textContent = t;
+        if (i === playIdx) li.className = "flash";
+        ol.appendChild(li);
+      });
+      var cb = document.getElementById("chipBox"); cb.innerHTML = "";
+      m.chips.forEach(function(c){
+        var d = document.createElement("div"); d.className = "chip";
+        d.innerHTML = '<div class="k">'+c.k+'</div><div class="v">'+c.v+'</div><div class="d">'+c.d+'</div><div class="bar"><i style="width:'+c.bar+'%"></i></div>';
+        cb.appendChild(d);
+      });
+    }
+    function setMode(key){
+      curMode = key; playIdx = -1; stopPlay();
+      var tabs = document.getElementById("modeTabs").children;
+      for (var i=0;i<tabs.length;i++) tabs[i].setAttribute("aria-pressed", tabs[i].dataset.k===key ? "true":"false");
+      renderSvg(); renderSteps();
+    }
+    function stopPlay(){ if (playTimer){ clearInterval(playTimer); playTimer = null; document.getElementById("playBtn").textContent = "▶ 播放发包过程"; } }
+    function advance(){
+      var m = MODES[curMode];
+      playIdx++;
+      if (playIdx >= m.steps.length){ playIdx = m.steps.length-1; stopPlay(); return; }
+      renderSvg(); renderSteps();
+    }
+    (function initLab(){
+      var box = document.getElementById("modeTabs");
+      Object.keys(MODES).forEach(function(k){
+        var b = document.createElement("button");
+        b.textContent = MODES[k].label; b.dataset.k = k; b.setAttribute("aria-pressed", k==="qemu"?"true":"false");
+        b.addEventListener("click", function(){ setMode(k); });
+        box.appendChild(b);
+      });
+      document.getElementById("playBtn").addEventListener("click", function(){
+        if (playTimer){ stopPlay(); return; }
+        playIdx = -1; renderSvg(); renderSteps();
+        this.textContent = "⏸ 暂停";
+        playTimer = setInterval(advance, 1500); advance();
+      });
+      document.getElementById("stepBtn").addEventListener("click", function(){
+        stopPlay();
+        if (playIdx >= MODES[curMode].steps.length-1) playIdx = -1;
+        advance();
+      });
+      renderSvg(); renderSteps();
+    })();
+
+    /* ================= virtqueue 演示 ================= */
+    var RING_N = 8, descState = [], availHead = 0, usedHead = 0, availFilled = 0;
+    function buildSlots(el, prefix){
+      el.innerHTML = "";
+      for (var i=0;i<RING_N;i++){
+        var d = document.createElement("div"); d.className = "slot"; d.id = prefix+i;
+        d.innerHTML = '<span class="n">#'+i+'</span><span class="s">—</span>';
+        el.appendChild(d);
+      }
+    }
+    function ringReset(){
+      descState = []; availFilled = 0; usedHead = 0;
+      ["descSlots","availSlots","usedSlots"].forEach(function(id, idx){
+        buildSlots(document.getElementById(id), ["d","a","u"][idx]);
+      });
+      document.getElementById("descBox").textContent = "（空）点击「Guest 投递」后，这里会显示被占用的描述符字段。";
+      document.getElementById("ringLog").textContent = "已重置：三个环回到初始状态，idx 均为 0。";
+    }
+    document.getElementById("pushBtn").addEventListener("click", function(){
+      if (availFilled > 0){ document.getElementById("ringLog").textContent = "环里还有未消费的描述符——先让后端消费，或重置后再投递。"; return; }
+      descState = [
+        {i:0, addr:"0x7f3a_1000", len:1514, flags:"NEXT", next:1},
+        {i:1, addr:"0x7f3a_1600", len:1514, flags:"—（链尾）", next:"—"}
+      ];
+      descState.forEach(function(dd){
+        var dEl = document.getElementById("d"+dd.i); dEl.className = "slot full"; dEl.querySelector(".s").textContent = dd.len+"B";
+        var aEl = document.getElementById("a"+dd.i); aEl.className = "slot full"; aEl.querySelector(".s").textContent = "desc "+dd.i;
+      });
+      availFilled = 2;
+      document.getElementById("descBox").innerHTML =
+        'desc[0]  addr=<span class="hl2">0x7f3a_1000</span>  len=<span class="hl2">1514</span>  flags=NEXT  next=1<br />'
+        + 'desc[1]  addr=<span class="hl2">0x7f3a_1600</span>  len=<span class="hl2">1514</span>  flags=—（链尾）<br />'
+        + 'avail-&gt;idx = <span class="hl2">2</span>（Guest 刚更新）';
+      document.getElementById("ringLog").innerHTML = "Guest 把一帧拆进两个描述符（描述符链），avail 环 idx 从 0 → 2，随后写 kick 通知后端。<b>注意：</b>通知只说「有新货」，不说有几件——后端靠读 idx 自己算。";
+    });
+    document.getElementById("consumeBtn").addEventListener("click", function(){
+      if (availFilled === 0){ document.getElementById("ringLog").textContent = "avail 环是空的，后端无事可做——先点「Guest 投递」。"; return; }
+      descState.forEach(function(dd){
+        var uEl = document.getElementById("u"+dd.i); uEl.className = "slot used-done"; uEl.querySelector(".s").textContent = "done";
+        var aEl = document.getElementById("a"+dd.i); aEl.className = "slot"; aEl.querySelector(".s").textContent = "—";
+        var dEl = document.getElementById("d"+dd.i); dEl.className = "slot"; dEl.querySelector(".s").textContent = "—";
+      });
+      availFilled = 0; usedHead = 2;
+      document.getElementById("descBox").innerHTML =
+        'used[0]  id=0  len=<span class="hl2">3028</span>（整条链实际发送字节）<br />used-&gt;idx = <span class="hl2">2</span>（后端刚回写）';
+      document.getElementById("ringLog").innerHTML = "后端按 avail idx 取走整条描述符链、把数据搬到 TAP/网卡，然后在 used 环回写完成项、更新 used idx，并通过 call eventfd → irqfd 通知 Guest「发完了」。描述符自此可被 Guest 复用。";
+    });
+    document.getElementById("ringResetBtn").addEventListener("click", ringReset);
+    ringReset();
+
+    /* ================= 建立流程 stepper ================= */
+    var SETUP = [
+      { t:"1 · 打开设备", io:"open(\"/dev/vhost-net\")",
+        code:'<span class="k">int</span> fd = <span class="f">open</span>(<span class="k">"/dev/vhost-net"</span>, O_RDWR);',
+        d:"QEMU 为每个 virtio-net 设备打开一次 vhost 字符设备，拿到 fd。此后所有控制动作都是对这个 fd 的 ioctl；数据面则完全不经过它。" },
+      { t:"2 · 认领所有权", io:"VHOST_SET_OWNER",
+        d:"声明「这个 vhost 实例归我」，内核随之创建一个专属的 vhost worker 线程上下文。没有所有权的 fd 不能下发后续配置。" },
+      { t:"3 · 下发内存表", io:"VHOST_SET_MEM_TABLE",
+        d:"把 Guest 的物理内存布局（每段 GPA 起点、大小、对应的宿主虚拟地址）告诉内核。后端日后看到描述符里的 GPA，就靠这张表翻译成自己能解引用的地址——这是后端能直达 Guest 内存的关键一步。" },
+      { t:"4 · 协商特性", io:"VHOST_SET_FEATURES",
+        d:"Guest 驱动与后端把 virtio 特性位取交集：如可合并 RX 缓冲（MRG_RXBUF）、多队列、校验和卸载等。协商结果决定描述符的解读方式，迁移时两端必须一致。" },
+      { t:"5 · 配置每个 virtqueue", io:"VHOST_SET_VRING_NUM / BASE / ADDR / KICK / CALL",
+        d:"逐队列下发：队列深度、描述符表/可用环/已用环的地址、以及 kick 与 call 两个 eventfd。至此后端已具备独立消费队列的全部信息。" },
+      { t:"6 · 绑定真实后端设备", io:"VHOST_NET_SET_BACKEND（tap fd）",
+        d:"把 TAP 设备的 fd 交给内核 vhost-net 作为数据的最终去向。网络场景绑 TAP，存储场景（vhost-scsi）对应的则是 SCSI target——「绑谁」决定了这类 vhost 设备的具体身份。" },
+      { t:"7 · 数据面开跑", io:"worker 线程循环：poll kick → 消费环 → 搬运 → 写 used → call",
+        code:'<span class="c">/* 内核 vhost worker 线程，此后与 QEMU 无关 */</span>\n<span class="k">while</span> (1) { <span class="f">poll</span>(kick_fd); 消费 avail 环; 搬运数据; 写 used 环; <span class="f">signal</span>(call_fd); }',
+        d:"QEMU 退出热路径。vhost-user 的等价流程是把上述 2–6 步换成 Unix socket 上的 VHOST_USER_SET_MEM_TABLE / SET_VRING_* 消息，其中内存表通过 SCM_RIGHTS 传的是 RAM 后端的文件描述符。" }
+    ];
+    var setupIdx = 0;
+    function renderSetup(){
+      var list = document.getElementById("setupList"); list.innerHTML = "";
+      SETUP.forEach(function(s, i){
+        var b = document.createElement("button");
+        b.setAttribute("aria-pressed", i===setupIdx ? "true":"false");
+        b.innerHTML = s.t + '<span class="mono">'+s.io.split("（")[0]+'</span>';
+        b.addEventListener("click", function(){ setupIdx = i; renderSetup(); });
+        list.appendChild(b);
+      });
+      var s = SETUP[setupIdx];
+      document.getElementById("setupTitle").textContent = s.t;
+      var codeLine = s.code ? s.code : '<span class="f">ioctl</span>(vhost_fd, <span class="k">'+s.io.replace(/</g,"&lt;")+'</span>, ...);';
+      document.getElementById("setupCode").innerHTML = '<pre><span class="c">// 控制面调用（QEMU 侧）</span>\n'+codeLine+'</pre>';
+      document.getElementById("setupDesc").textContent = s.d;
+      document.getElementById("setupPrev").disabled = setupIdx===0;
+      document.getElementById("setupNext").disabled = setupIdx===SETUP.length-1;
+    }
+    document.getElementById("setupPrev").addEventListener("click", function(){ if (setupIdx>0){ setupIdx--; renderSetup(); } });
+    document.getElementById("setupNext").addEventListener("click", function(){ if (setupIdx<SETUP.length-1){ setupIdx++; renderSetup(); } });
+    renderSetup();
+
+    /* ================= 家族图鉴 ================= */
+    var FAMILY = [
+      { name:"vhost-net", dev:"/dev/vhost-net · 内核模块 vhost_net", cls:"k", tag:"内核后端",
+        p:"virtio-net 的内核数据面：vhost worker 线程在 Guest 内存与 TAP 之间直接搬运包。是 KVM 云主机事实上的默认网络后端。",
+        ex:"代表：QEMU/KVM 公有云、OpenStack Nova 默认配置" },
+      { name:"vhost-user-net", dev:"Unix socket · VHOST_USER 协议", cls:"u", tag:"进程后端",
+        p:"队列交给独立进程消费，最典型的是 DPDK：后端轮询共享内存中的环，网卡 DMA 直达 Guest 缓冲，零拷贝、零 VM Exit。",
+        ex:"代表：OVS-DPDK、Cloud Hypervisor vhost-user-net、FD.io VPP" },
+      { name:"vhost-user-blk / scsi", dev:"Unix socket · SPDK 后端", cls:"u", tag:"进程后端",
+        p:"块设备的 vhost-user 化：SPDK 在用户态轮询队列、直连 NVMe，把虚拟磁盘的 IO 路径从 QEMU 里整段搬走，IOPS 与延迟都显著改善。",
+        ex:"代表：SPDK vhost target、云厂商高性能云盘" },
+      { name:"vhost-scsi", dev:"/dev/vhost-scsi · LIO target", cls:"k", tag:"内核后端",
+        p:"把 SCSI 命令从 Guest 直送内核 LIO 目标子系统：Guest 看到的是标准 SCSI 盘，宿主侧可对接本地盘、FC/iSCSI LUN，常用于整盘直通类需求。",
+        ex:"代表：QEMU -device vhost-scsi-pci、SAN LUN 挂载" },
+      { name:"vhost-vsock", dev:"/dev/vhost-vsock · AF_VSOCK", cls:"t", tag:"宿主通信",
+        p:"不连网卡、不连磁盘：它给 Guest 与宿主之间开一条基于 virtio 的流式套接字通道（vsock），无需配置虚拟网络即可通信，天然隔离于 Guest 的网络面。",
+        ex:"代表：Kata Containers 的 agent 通信、Firecracker 生态工具链、沙箱控制通道" },
+      { name:"vhost-user-crypto（附注）", dev:"Unix socket · QEMU cryptodev 框架", cls:"u", tag:"进程后端",
+        p:"virtio-crypto 的加速不走内核 vhost：QEMU 用 cryptodev 框架把加解密请求交给内置实现或 vhost-user 后端进程（如对接 DPDK cryptodev）。主线内核并没有 /dev/vhost-crypto——crypto 是少数没有内核 vhost 后端的设备类型，这正好标出 vhost 的边界：后端放在哪一层，取决于哪一层有现成的执行引擎。",
+        ex:"代表：QEMU -object cryptodev-backend-* + vhost-user-crypto 服务" },
+      { name:"virtiofsd（vhost-user-fs）", dev:"Unix socket · FUSE 协议 over virtqueue", cls:"u", tag:"进程后端",
+        p:"用 vhost-user 承载 virtio-fs：宿主目录以近本地盘的语义共享进 Guest，后端是独立的 virtiofsd 守护进程（Rust 实现为主），队列与内存共享机制与 vhost-user-net 同源。",
+        ex:"代表：Kata Containers 文件共享、MicroVM 挂载宿主目录" },
+      { name:"vDPA", dev:"/dev/vhost-vdpa · 厂商网卡/DPU", cls:"h", tag:"硬件后端",
+        p:"virtio 数据面直接由硬件实现：网卡读队列、DMA 搬数据，vhost 只剩控制面语义（含影子队列辅助迁移）。严格说 vDPA 是框架名，但它与 vhost 共享同一套控制接口，长在同一棵树上。",
+        ex:"代表：Mellanox ConnectX vDPA、Intel IPU、云厂商 DPU 卸载" },
+      { name:"VDUSE", dev:"/dev/vduse-* · vDPA in userspace", cls:"h", tag:"硬件框架的软件版",
+        p:"vDPA 的用户态孪生：用 vhost-vdpa 的接口形态，把「设备实现」放回一个用户进程（如把 vhost-user 后端包装成 vDPA 设备），让内核/容器生态能以统一方式消费软件后端。",
+        ex:"代表：DPDK vduse、把软件后端接入 vhost-vdpa 消费方的场景" }
+    ];
+    (function renderFam(){
+      var g = document.getElementById("famGrid");
+      FAMILY.forEach(function(f){
+        var d = document.createElement("div"); d.className = "panel fam";
+        d.innerHTML = '<span class="tag '+f.cls+'">'+f.tag+'</span><div class="name">'+f.name+'</div><div class="dev">'+f.dev+'</div><p>'+f.p+'</p><div class="ex">'+f.ex+'</div>';
+        g.appendChild(d);
+      });
+    })();
+
+    /* ================= 拷贝账图表 ================= */
+    (function renderChart(){
+      var rows = [
+        { name:"纯 QEMU + TAP", tx:1, rx:2 },
+        { name:"vhost-net（默认 copy 模式）", tx:1, rx:1 },
+        { name:"vhost-user + DPDK", tx:0, rx:0 },
+        { name:"vDPA（硬件）", tx:0, rx:0 }
+      ];
+      var W = 940, rowH = 56, top = 34, labelW = 240, maxV = 2, plotW = W - labelW - 90;
+      var s = "";
+      for (var gLine=0; gLine<=maxV; gLine++){
+        var gx = labelW + plotW*gLine/maxV;
+        s += '<line x1="'+gx+'" y1="'+(top-10)+'" x2="'+gx+'" y2="'+(top+rowH*rows.length)+'" stroke="var(--line)" stroke-width="1"/>'
+           + '<text x="'+gx+'" y="'+(top-16)+'" text-anchor="middle" font-size="12" fill="var(--ink3)">'+gLine+' 次</text>';
+      }
+      rows.forEach(function(r, ri){
+        var y = top + ri*rowH;
+        s += '<text x="'+(labelW-14)+'" y="'+(y+22)+'" text-anchor="end" font-size="14" font-weight="700" fill="var(--ink)">'+r.name+'</text>';
+        // TX bar
+        s += '<rect x="'+labelW+'" y="'+y+'" width="'+Math.max(plotW*r.tx/maxV, r.tx?26:3)+'" height="17" rx="4" fill="var(--accent)" opacity="'+(r.tx?1:0.25)+'"/>'
+           + '<text x="'+(labelW+Math.max(plotW*r.tx/maxV,26)+9)+'" y="'+(y+13)+'" font-size="12.5" font-weight="700" fill="var(--accent-ink)">TX '+r.tx+' 次</text>';
+        // RX bar
+        s += '<rect x="'+labelW+'" y="'+(y+21)+'" width="'+Math.max(plotW*r.rx/maxV, r.rx?26:3)+'" height="17" rx="4" fill="var(--teal)" opacity="'+(r.rx?1:0.25)+'"/>'
+           + '<text x="'+(labelW+Math.max(plotW*r.rx/maxV,26)+9)+'" y="'+(y+34)+'" font-size="12.5" font-weight="700" fill="var(--teal)">RX '+r.rx+' 次</text>';
+      });
+      s += '<text x="'+labelW+'" y="'+(top+rowH*rows.length+24)+'" font-size="12" fill="var(--ink3)">口径：单个数据帧被整包 memcpy 的次数（不含协议头处理与 skb 元数据操作）。0 次 = DMA 直达 Guest 缓冲。</text>';
+      document.getElementById("copyChart").innerHTML = s;
+    })();
+
+    /* ================= 应用场景 ================= */
+    var SCN = [
+      { label:"通用云主机", title:"场景一 · 公有云 / 私有云通用云主机",
+        desc:"成千上万台规格各异的虚机，网络流量以南北向业务流量为主，PPS 不极端，但密度、热迁移和运维一致性是硬要求。",
+        why:["vhost-net 是发行版与 OpenStack 的默认路径，几乎零额外配置","数据面在内核，宿主升级、排障工具链（TAP 抓包、tc 限速）成熟","热迁移语义完整，跨机型兼容性最好"],
+        cost:["单队列/多队列的 PPS 上限低于 DPDK 方案","包仍要在内核里拷一次，超大带宽小包场景会先撞 CPU"],
+        fit:"virtio-net + vhost-net + TAP/OVS 内核转发" },
+      { label:"NFV / 5G 网元", title:"场景二 · NFV、5G UPF、虚拟网关",
+        desc:"虚拟防火墙、UPF、负载均衡这类网元型虚机，考核指标是线速小包转发与微秒级延迟抖动，宿主机 CPU 可以整核让给数据面。",
+        why:["vhost-user + DPDK 轮询：零拷贝、零中断，PPS 与延迟都进入硬件直通量级","后端（OVS-DPDK/VPP）自带成熟的流表与 QoS 能力","多队列可与 vCPU、NUMA 一一绑核对齐"],
+        cost:["必须大页 + 共享内存，虚机内存不可超分","后端进程状态（连接跟踪、流表）使热迁移/快照显著变难","CPU 忙轮询：没流量也在烧核，能耗账要算清"],
+        fit:"virtio-net + vhost-user + OVS-DPDK / VPP" },
+      { label:"高性能云盘", title:"场景三 · 高 IOPS 云盘与数据库虚机",
+        desc:"数据库、消息队列等 IO 敏感负载跑在虚机里，瓶颈不在网络而在块设备路径：QEMU 的块层线程池成为延迟来源。",
+        why:["vhost-user-blk + SPDK 把 IO 路径搬进用户态轮询，绕开 QEMU 块层","SPDK 直连 NVMe，单队列深度下延迟可逼近裸盘","与网络侧 vhost-user 共用同一套运维模型（socket、内存表、绑核）"],
+        cost:["SPDK 进程的可信与隔离要单独评估（它同样握有 Guest 内存）","卷的快照/迁移需要 SPDK 与云管协同，不是开箱即用"],
+        fit:"virtio-blk 前端 + vhost-user-blk + SPDK NVMe" },
+      { label:"沙箱 / MicroVM", title:"场景四 · 函数计算与 AI 代码沙箱",
+        desc:"毫秒级启停、成千上万密度的 MicroVM：VMM 换成 Cloud Hypervisor / Firecracker 这类极简实现，vhost 仍是它们接入高性能数据面的标准口。",
+        why:["Cloud Hypervisor 用 vhost-user-net 把沙箱网络接到 OVS-DPDK：宿主机不需要为每个沙箱加 TAP 口，互通全在 DPDK 桥内完成","vhost-vsock 给沙箱一条不依赖虚拟网络的宿主控制/日志通道","后端进程与沙箱进程分离，数据面 CPU 记账、限速都在后端侧做"],
+        cost:["CH 硬性要求 vhost-user 场景内存 shared=on","后端状态不在内存快照内：恢复沙箱前目标机后端必须先就位，且恢复被锁定为 eager 全量拷内存，不支持懒恢复"],
+        fit:"Cloud Hypervisor + vhost-user-net（OVS-DPDK）+ vhost-vsock" },
+      { label:"安全容器", title:"场景五 · Kata Containers 安全容器",
+        desc:"容器接口、虚机隔离：每个 Pod 跑在一个轻量虚机里，需要宿主 agent 通信与宿主目录共享，又不想给 Guest 配管理网络。",
+        why:["vhost-vsock 承载 guest agent 通道：无 IP、无虚拟网卡，攻击面最小","virtio-fs（vhost-user-fs / virtiofsd）把宿主目录以文件语义共享进 Pod","网络面仍可走 vhost-net，与普通虚机复用同一套 CNI/桥接设施"],
+        cost:["vsock 的地址（CID）管理与审计要纳入平台规范","virtiofsd 的缓存一致性语义与本地盘有差异，强一致负载要实测"],
+        fit:"Kata + vhost-vsock（agent）+ virtiofsd（共享目录）" },
+      { label:"DPU 卸载型云", title:"场景六 · SmartNIC / DPU 卸载的云主机",
+        desc:"云厂商把虚机网络（乃至存储）整段卸载到 DPU：宿主 CPU 只跑虚机本身，网络由卡上的 vDPA 硬件数据面承担。",
+        why:["vDPA 给出直通级性能，同时保留 virtio 抽象——镜像与驱动不用为每家卡改","控制面仍走 vhost-vdpa，云管编排接口与传统 vhost 一脉相承","宿主侧零数据面 CPU，单机虚机密度上限被抬高"],
+        cost:["绑定具体硬件型号与固件，跨厂商迁移要验特性矩阵","热迁移依赖影子 virtqueue（SVQ），大流量下 SVQ 本身有开销","硬件队列资源有限，多租户隔离粒度受卡规格约束"],
+        fit:"virtio-net + vhost-vdpa + SmartNIC，迁移时启用 SVQ" }
+    ];
+    var scnIdx = 0;
+    function renderScn(){
+      var tabs = document.getElementById("scnTabs"); tabs.innerHTML = "";
+      SCN.forEach(function(s, i){
+        var b = document.createElement("button");
+        b.textContent = s.label; b.setAttribute("aria-pressed", i===scnIdx ? "true":"false");
+        b.addEventListener("click", function(){ scnIdx = i; renderScn(); });
+        tabs.appendChild(b);
+      });
+      var s = SCN[scnIdx];
+      document.getElementById("scnTitle").textContent = s.title;
+      document.getElementById("scnDesc").textContent = s.desc;
+      document.getElementById("scnWhy").innerHTML = s.why.map(function(x){ return "<li>"+x+"</li>"; }).join("");
+      document.getElementById("scnCost").innerHTML = s.cost.map(function(x){ return "<li>"+x+"</li>"; }).join("");
+      document.getElementById("scnFit").textContent = s.fit;
+    }
+    renderScn();
+
+    /* ================= 选型速判 ================= */
+    var qSel = { q1:null, q2:null };
+    function bindOpts(id, key){
+      var box = document.getElementById(id);
+      box.addEventListener("click", function(e){
+        if (e.target.tagName !== "BUTTON") return;
+        var btns = box.querySelectorAll("button");
+        for (var i=0;i<btns.length;i++) btns[i].setAttribute("aria-pressed","false");
+        e.target.setAttribute("aria-pressed","true");
+        qSel[key] = e.target.dataset.v; verdict();
+      });
+    }
+    bindOpts("q1","q1"); bindOpts("q2","q2");
+    function verdict(){
+      if (!qSel.q1 || !qSel.q2) return;
+      var v = document.getElementById("verdict"), html = "";
+      if (qSel.q1 === "comm") html = '建议起点：<span class="mono">vhost-vsock</span>——它就是为宿主↔Guest 通信而生的，不占虚拟网络、不配 IP。文件共享再加 <span class="mono">virtiofsd</span>。';
+      else if (qSel.q1 === "blk") html = qSel.q2 === "low"
+        ? '建议起点：先用 <span class="mono">virtio-blk + QEMU 原生后端</span> 或内核 <span class="mono">vhost-scsi</span> 保迁移能力；若实测 IO 延迟仍不达标，再评估 SPDK 的 <span class="mono">vhost-user-blk</span>。'
+        : '建议起点：<span class="mono">vhost-user-blk + SPDK</span>，把块 IO 路径整体搬进用户态轮询后端，直连 NVMe。';
+      else if (qSel.q1 === "pps") html = qSel.q2 === "hw"
+        ? '建议起点：<span class="mono">vDPA</span>——硬件数据面吃掉线速小包，宿主 CPU 归零；上线前务必验证目标网卡的特性矩阵与 SVQ 迁移开销。'
+        : (qSel.q2 === "high"
+          ? '建议起点：<span class="mono">vhost-user + OVS-DPDK/VPP</span>，大页、绑核、多队列对齐 vCPU，接受后端状态迁移复杂这个代价。'
+          : '存在张力：线速小包与「零改动可迁移」难以兼得。先用 <span class="mono">vhost-net 多队列 + 绑核</span> 实测上限，差多少再决定是否上 DPDK。');
+      else html = qSel.q2 === "hw"
+        ? '建议起点：<span class="mono">vhost-net</span> 即可满足通用负载；若宿主 CPU 是主要成本项，可在新购机型上灰度 <span class="mono">vDPA</span> 卸载。'
+        : '建议起点：<span class="mono">vhost-net</span>——通用云主机的默认最优解，性能、迁移、运维三者最均衡。';
+      v.innerHTML = html; v.className = "verdict show";
+    }
+    </script>
+  </body>
+</html>
