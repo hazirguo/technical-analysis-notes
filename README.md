@@ -18,4 +18,4 @@
 
 ## 发布方式
 
-推送到 `main` 分支后，由 `.github/workflows/pages.yml`（GitHub Actions）自动部署到 GitHub Pages，无需手动操作。
+GitHub Pages 已开启，来源为 `main` 分支根目录：推送到 `main` 后 Pages 会自动重新构建发布，无需其他操作。
