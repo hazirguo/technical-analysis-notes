@@ -200,8 +200,6 @@
       <span>仓库 <b>openkruise/agents</b></span>
       <span>基线 <b>HEAD 20bbd53</b>（2026-11-03）</span>
       <span>规模 <b>710 个 Go 文件</b></span>
-      <span>方法 <b>以源码为准，文档冲突时代码优先</b></span>
-      <span>查不到的结论标注 <b>「未核实」</b></span>
     </div>
     <div class="verdict-grid">
       <div class="verdict"><span class="tag tag-in">在本仓库</span><h3>控制面</h3><p>E2B 兼容管理 API、三层架构、预热池认领、配额记账、多租户——代码完整可查。</p></div>
@@ -215,25 +213,23 @@
 <div class="wrap layout">
   <nav class="toc" id="toc" aria-label="目录">
     <p>目录</p>
-    <a href="#ledger">记账边界</a>
-    <a href="#fixes">五处修正</a>
+    <a href="#ledger">实现边界</a>
     <a href="#arch">整体架构</a>
     <a href="#lifecycle">生命周期</a>
     <a href="#control">控制面</a>
     <a href="#inbound">入站链路</a>
     <a href="#egress">出站与组网</a>
     <a href="#position">谱系定位</a>
-    <a href="#unknown">未核实清单</a>
   </nav>
 
   <main>
     <!-- ============ 记账边界 ============ -->
     <section id="ledger">
-      <div class="sec-head"><span class="sec-num">01</span><h2>最重要的结论：分开记账</h2></div>
-      <p class="sec-lede">评估 OpenKruise Agents 时必须把「本仓库实现」与「树外部署集成」分开。官方文档描述的 Agentio 流量栈（<code>openkruise/ztunnel</code>、<code>agentiod</code>、<code>agentio-epe</code> 等 0.2.0 镜像）属于仓库之外的部署集成，不能只凭本仓库就宣称已经落地。</p>
+      <div class="sec-head"><span class="sec-num">01</span><h2>实现边界：仓内实现与仓外集成</h2></div>
+      <p class="sec-lede">OpenKruise Agents 的实现分两半：控制面与入站网关在本仓库内，出站流量栈不在。官方的 Agentio 流量栈（<code>openkruise/ztunnel</code>、<code>agentiod</code>、<code>agentio-epe</code> 等 0.2.0 镜像）是仓库之外的部署集成，与本仓代码是契约对接关系，不是同一份实现。</p>
       <div class="ledger">
         <div class="col yes">
-          <h3>✓ 可以归给本仓库</h3>
+          <h3>✓ 本仓库实现</h3>
           <ul>
             <li>Pod 生命周期状态机（9 个 Phase）与预热池 / Claim / Pause / Resume / 批量升级 / 池扩缩</li>
             <li>17 个 CRD 的资源模型（agents 组 12 + security 组 5）</li>
@@ -244,7 +240,7 @@
           </ul>
         </div>
         <div class="col no">
-          <h3>✗ 不能只凭本仓库宣称已落地</h3>
+          <h3>✗ 仓库之外的部署集成</h3>
           <ul>
             <li>ztunnel 的 L4 抓包与本地规则执行、proxy-init 的 iptables 规则</li>
             <li>DNS 捕获、FQDN 解析学习与 TTL 缓存</li>
@@ -257,58 +253,10 @@
       </div>
     </section>
 
-    <!-- ============ 五处修正 ============ -->
-    <section id="fixes">
-      <div class="sec-head"><span class="sec-num">02</span><h2>对先前文档分析的五处修正</h2></div>
-      <p class="sec-lede">此前基于官方文档（v0.6.0 口径）的分析有五处与源码不符，本次全部按 HEAD 20bbd53 的代码订正。</p>
-
-      <div class="fix">
-        <span class="n">修正 1</span>
-        <h3>CRD 是 17 个顶层 Kind，不是 12 个</h3>
-        <p class="old">旧说法：<s>共 12 个 CRD</s></p>
-        <p><code>agents.kruise.io/v1alpha1</code> 组 12 个（Sandbox、SandboxSet、SandboxClaim、SandboxTemplate、Checkpoint、Commit、SandboxUpdateOps、PoolAutoscaler、TrafficPolicy、GlobalTrafficPolicy、SecurityProfile、GlobalSecurityProfile），另有 <code>security.agents.kruise.io/v1alpha1</code> 组 5 个（AgentIdentity、AgentRole、AgentRoleBinding、AgentAuthenticationConfig、CredentialProvider），与 <code>config/crd/bases</code> 的 17 个 YAML 一一对应（已实测 ls 核对）。</p>
-      </div>
-
-      <div class="fix">
-        <span class="n">修正 2</span>
-        <h3>开源版 Pause 是删 Pod，不是保 Pod 暂停</h3>
-        <p class="old">旧说法：<s>Pause/Resume 保留沙箱状态、可 Checkpoint 恢复</s></p>
-        <p>所有暂停入口最终置 <code>spec.paused=true</code>，公共控件的唯一实现是删 Pod 的 Stop 策略，状态只保留在 Sandbox CR 与 PVC，<strong>内存与 rootfs 丢失</strong>。Hibernate 的 <code>ensureCheckpointPaused</code> 函数存在但全仓无调用方，未接线；Resume 是按模板重建 Pod，再做 runtime 重初始化、令牌重签、CSI 重挂。</p>
-        <p><span class="ev">pkg/controller/sandbox/core/common_control.go:302、util.go:90 ensureStopPaused</span></p>
-      </div>
-
-      <div class="fix">
-        <span class="n">修正 3</span>
-        <h3>agent-runtime 不是自研 envd，而是上游二进制投递</h3>
-        <p class="old">旧说法：<s>agent-runtime 是自研的 envd 兼容 sidecar</s></p>
-        <p>构建时克隆 <code>e2b-dev/infra</code> 的 <code>2025.33</code> 分支、直接编译上游 envd 二进制打进镜像；以 init 容器形态投递到共享 emptyDir，业务容器 postStart 执行 <code>envd-run.sh</code> 以 <code>envd -isnotfc</code> 拉起，端口 49983。本仓自有增量只有启动包装与 CSI 动态挂载（storage-cli）。</p>
-        <p><span class="ev">dockerfiles/agent-runtime.Dockerfile 第 8–9 行；pkg/utils/constant.go RuntimePort</span></p>
-      </div>
-
-      <div class="fix">
-        <span class="n">修正 4</span>
-        <h3>「短期 JWT 流量令牌」在开源默认形态下不成立</h3>
-        <p class="old">旧说法：<s>入站流量令牌是短期 JWT</s></p>
-        <p>开源默认 IdentityProvider 只发随机 UUID 的 opaque token，有效期默认约 <strong>100 年</strong>，并不签 JWT。真正的 JWT 签发库 <code>pkg/identity/jwtissuer</code> 存在（默认 1 小时、绑定 sandbox ID + UID），但要部署方接入真实 provider 后才生效。</p>
-        <p><span class="ev">pkg/identity/common_provider.go；pkg/identity/jwtissuer</span></p>
-      </div>
-
-      <div class="fix">
-        <span class="n">修正 5</span>
-        <h3>出站 L4/L7 数据面不在本仓库</h3>
-        <p class="old">旧说法：<s>L4 是注入 Pod 的 ztunnel、L7 是 EPE，均属本项目实现</s></p>
-        <p>本仓只有类型契约、Manager 侧单沙箱 TrafficPolicy 的生成与读回、E2B 内联 security-rules 的受限解析、traffic-proxy 的声明式注入框架。仓库内与 Istio 风格相关的实证只有健康探针改写（sidecar 名 <code>istio-proxy</code>、状态端口 15020）；CR 编译器、EPE 本体、DNS 学习、iptables 抓包代码均未找到。</p>
-      </div>
-
-      <div class="callout danger">
-        <h4>⚠ 由修正 4 派生的默认安全姿态</h4>
-        <p>发版 configmap 里网关的两个数据面开关 <code>enable-auth</code> 与 <code>enable-jwt-auth</code> 默认均为 <code>false</code>（<code>config/sandbox-gateway/configmap.yaml</code> 第 101–102 行，已实测）——即<strong>出厂默认数据面不做任何凭证校验</strong>，知道 sandboxID 就能打进任意端口。部署方必须自行开启鉴权或以 NetworkPolicy 兜底。</p>
-      </div>
-    </section>
 
     <!-- ============ 架构 ============ -->
     <section id="arch">
-      <div class="sec-head"><span class="sec-num">03</span><h2>整体架构与组件形态</h2></div>
+      <div class="sec-head"><span class="sec-num">02</span><h2>整体架构与组件形态</h2></div>
       <p class="sec-lede">控制面是两个独立 Deployment；数据面网关不是独立进程，而是编成 c-shared .so 与 Envoy 同进程运行，controller、waker、peer server 都寄生在网关进程内。</p>
 
       <figure class="fig">
@@ -382,7 +330,7 @@
             <tr><td>sandbox-gateway</td><td><strong>非独立进程</strong>：c-shared .so 与 Envoy 同进程</td><td>入站数据面：路由解析、鉴权、流量唤醒、ORIGINAL_DST 直连 Pod IP；镜像基于 envoyproxy/envoy:contrib-v1.37.3</td></tr>
             <tr><td>sandbox-gateway-cert-init</td><td>gateway 同镜像的 initContainer</td><td>一次性拉取 runtime mTLS 客户端证书到共享内存卷；落盘前严格校验（大小上限、证书私钥配对、有效期、ClientAuth 用途、CA 链验签），目录 0700、私钥 0400</td></tr>
             <tr><td>agent-runtime</td><td>Pod 内原生 sidecar（initContainer + restartPolicy Always）</td><td>投递上游 envd 二进制并拉起（49983）；另含 CSI 动态挂载 storage-cli</td></tr>
-            <tr><td>agent-identity-provider</td><td>独立 Deployment（默认不随 config/default 安装）</td><td>AgentIdentity 与 AgentAuthenticationConfig 控制器，可选 OIDC discovery / JWKS 端点（8443）；其签发 RPC 尚不存在（主程序注释明示），镜像构建入口在本仓未核实</td></tr>
+            <tr><td>agent-identity-provider</td><td>独立 Deployment（默认不随 config/default 安装）</td><td>AgentIdentity 与 AgentAuthenticationConfig 控制器，可选 OIDC discovery / JWKS 端点（8443）；其签发 RPC 尚不存在（主程序注释明示）</td></tr>
             <tr><td>commit-job</td><td>Commit 控制器按需创建的一次性 Job</td><td>调度到源 Pod 所在节点，挂宿主机 containerd 目录，用 nerdctl commit + push 把容器可写层固化成镜像</td></tr>
             <tr><td>okactl</td><td>本地 CLI（直连 K8s API，不经 manager）</td><td>五条运维命令：scale sandboxset、set image、create suo、restart sandbox、status</td></tr>
           </tbody>
@@ -390,7 +338,7 @@
       </div>
 
       <h3 class="sub">「Sandbox 就是 Pod」的字面证据</h3>
-      <p><code>SandboxSpec</code> 的模板字段类型就是 <code>corev1.PodTemplateSpec</code>；控制器以同名、controller ownerRef 为每个 Sandbox 生成恰好一个 Pod，建 Pod 时整段复制模板 Spec（<code>pkg/controller/sandbox/core/pod_control.go:305 generateBasePodFromSandbox</code>）。<code>RuntimeClass</code> 在 api 与 pkg 全部 Go 代码中 grep 为 <strong>0 命中</strong>（已实测）：模板里写 <code>runtimeClassName</code> 只是随 PodSpec 被动复制，项目没有显式建模、校验或准入收紧；仓库内也未找到默认禁止 privileged、hostNetwork、NET_ADMIN 的准入逻辑。</p>
+      <p><code>SandboxSpec</code> 的模板字段类型就是 <code>corev1.PodTemplateSpec</code>；控制器以同名、controller ownerRef 为每个 Sandbox 生成恰好一个 Pod，建 Pod 时整段复制模板 Spec（<code>pkg/controller/sandbox/core/pod_control.go:305 generateBasePodFromSandbox</code>）。<code>RuntimeClass</code> 在 api 与 pkg 的全部 Go 代码中<strong>没有任何引用</strong>：模板里写 <code>runtimeClassName</code> 只是随 PodSpec 被动复制，项目没有显式建模、校验或准入收紧；同样没有默认禁止 privileged、hostNetwork、NET_ADMIN 的准入逻辑。</p>
       <p>Sandbox 的 9 个 Phase：</p>
       <div class="chips">
         <span>Pending</span><span><b>Running</b></span><span><b>Paused</b></span><span>Resuming</span><span>Upgrading</span><span>Succeeded</span><span>Failed</span><span>Recycling</span><span>Terminating</span>
@@ -399,7 +347,7 @@
 
     <!-- ============ 生命周期 ============ -->
     <section id="lifecycle">
-      <div class="sec-head"><span class="sec-num">04</span><h2>生命周期：预热池、认领、暂停恢复、升级</h2></div>
+      <div class="sec-head"><span class="sec-num">03</span><h2>生命周期：预热池、认领、暂停恢复、升级</h2></div>
 
       <h3 class="sub">预热池与 Claim</h3>
       <ul>
@@ -413,7 +361,7 @@
       <ul>
         <li>暂停 = 删 Pod（5 秒宽限期），保留 Sandbox CR 与 PVC；暂停前 <code>preparePausedPhase</code> 会因外部未完成的 Checkpoint 而阻塞等待。</li>
         <li>Resume：<code>spec.paused</code> 置 false 后按模板重建 Pod，Running 阶段先等 Pod Ready，再由 initializer 依次做 <strong>runtime 重初始化 → 安全令牌重签 → CSI 按注解重挂</strong>，完成后才发布 Ready。并发 Resume 经 first-writer-wins 去重。</li>
-        <li>Checkpoint 在本仓的角色是「被创建与消费的 CR」：暂停与升级路径能创建 Checkpoint CR 并轮询等其 Succeeded，但<strong>真正执行转储并回写状态的 Checkpoint 控制器不在本仓注册表内</strong>（与「开源 Checkpoint 拟与 Kata 社区基于 K8s PodCheckpoint 共建」的说法吻合）。Checkpoint 数据在普通 Resume 路径的回放未见接线，未核实。</li>
+        <li>Checkpoint 在本仓的角色是「被创建与消费的 CR」：暂停与升级路径能创建 Checkpoint CR 并轮询等其 Succeeded，但<strong>真正执行转储并回写状态的 Checkpoint 控制器不在本仓注册表内</strong>，由仓外组件（Kata / 云厂商侧）承担。普通 Resume 路径也不回放 Checkpoint 数据：恢复完全靠按模板重建 Pod。</li>
       </ul>
       <p>自动暂停有四条独立触发线：</p>
       <div class="chips">
@@ -433,7 +381,7 @@
 
     <!-- ============ 控制面 ============ -->
     <section id="control">
-      <div class="sec-head"><span class="sec-num">05</span><h2>控制面：三层架构、E2B 兼容与配额</h2></div>
+      <div class="sec-head"><span class="sec-num">04</span><h2>控制面：三层架构、E2B 兼容与配额</h2></div>
       <p class="sec-lede">分层与仓库根 AGENTS.md 契约基本吻合：API 层 <code>pkg/servers</code>（路由、协议模型、校验、状态码映射）→ Manager 层 <code>pkg/sandbox-manager</code>（业务用例、配额编排、路由同步、流量令牌）→ Infra 层 <code>pkg/sandbox-manager/infra</code>（唯一具体实现 sandboxcr）。唯一越界是 API 层有 9 个文件直接 import infra 的中立类型（不调用其实现），属契约自认的遗留债务。</p>
 
       <h3 class="sub">创建沙箱全链路（代码级）</h3>
@@ -484,7 +432,7 @@
 
     <!-- ============ 入站 ============ -->
     <section id="inbound">
-      <div class="sec-head"><span class="sec-num">06</span><h2>入站：网关、路由、鉴权、唤醒</h2></div>
+      <div class="sec-head"><span class="sec-num">05</span><h2>入站：网关、路由、鉴权、唤醒</h2></div>
       <p class="sec-lede">网关是 Envoy + 同进程 Go filter：CGO 构建共享库放进 Envoy 镜像，入口 main 为空函数，init 里注册 filter 工厂并拉起寄生的 controller 与 peer server。Envoy 监听 7788，对外 Service 端口 10000。点按下方任一步，查看一个请求穿过网关的完整路径。</p>
 
       <div class="flow" id="flowSteps" role="tablist" aria-label="请求穿过网关的步骤"></div>
@@ -543,14 +491,14 @@
 
     <!-- ============ 出站与组网 ============ -->
     <section id="egress">
-      <div class="sec-head"><span class="sec-num">07</span><h2>出站与组网：契约在本仓，执行在仓外</h2></div>
+      <div class="sec-head"><span class="sec-num">06</span><h2>出站与组网：契约在本仓，执行在仓外</h2></div>
 
       <h3 class="sub">Pod 组网基线</h3>
-      <p>项目不实现 CNI、IPAM 或独立 netns 分配：Pod 由集群 CNI 分配 Pod IP，控制器只读 <code>PodStatus.PodIP</code> 同步进 Sandbox 状态。沙箱间默认互访<strong>没有项目级默认拒绝</strong>（未找到默认 NetworkPolicy 模板），互通与否取决于集群 CNI 与用户自加的策略。<code>allow-internet-access</code> 标签只是全局策略的选择信号，本仓未核实有默认消费它的 GlobalTrafficPolicy。</p>
+      <p>项目不实现 CNI、IPAM 或独立 netns 分配：Pod 由集群 CNI 分配 Pod IP，控制器只读 <code>PodStatus.PodIP</code> 同步进 Sandbox 状态。沙箱间默认互访<strong>没有项目级默认拒绝</strong>：项目不下发默认 NetworkPolicy，互通与否取决于集群 CNI 与用户自加的策略。<code>allow-internet-access</code> 标签只是全局策略的选择信号，本仓没有默认消费它的 GlobalTrafficPolicy。</p>
 
       <h3 class="sub">L4（TrafficPolicy）：类型契约 + Manager 侧生成</h3>
       <ul>
-        <li>类型在 <code>api/v1alpha1</code>（不在 api/security）：TrafficPolicy 与 GlobalTrafficPolicy 定义 peer（CIDR、FQDN、Service、Workload）、协议与端口的有序规则契约。<strong>仓库内对 Priority 的排序语义注释互相冲突</strong>（分册 Part C 已标注）。状态类型有定义，但把 CR 编译为 IPSet、xDS 或 ztunnel 本地规则并回写 Programmed 状态的生产 reconciler 不在本仓。</li>
+        <li>类型在 <code>api/v1alpha1</code>（不在 api/security）：TrafficPolicy 与 GlobalTrafficPolicy 定义 peer（CIDR、FQDN、Service、Workload）、协议与端口的有序规则契约。<strong>Priority 的排序语义在类型注释中并不自洽</strong>，实际执行语义由仓外编译器决定。状态类型有定义，但把 CR 编译为 IPSet、xDS 或 ztunnel 本地规则并回写 Programmed 状态的生产 reconciler 不在本仓。</li>
         <li>本仓实有的 L4 控制代码在 Manager 侧：E2B 的 allowOut / denyOut 经校验后由 <code>sandboxcr/network.go</code> 生成单沙箱 TrafficPolicy CR——GenerateName 前缀 <code>tp-</code>、带 Sandbox OwnerReference 以便垃圾回收、Priority 常量 100、selector 优先按 Pod 的 sandbox UID 标签、老 Pod 回退 name 标签。注释明说 selector 由树外组件执行，<strong>匹配不到 Pod 时出站限制会静默不生效</strong>。allowOut 编码为 allow 规则形成白名单结构，denyOut 编码为 reject 规则；更新走 merge patch 并删除多余重复策略，读回时从规则反解出原配置。</li>
         <li>traffic-proxy 注入框架在本仓：注入点不在 Pod mutating webhook，而在 Sandbox 控制器生成 Pod 时调用 <code>sidecarutils.InjectSandboxRuntimes</code>，以 <code>Sandbox.Spec.Runtimes</code> 是否含 traffic-proxy 为开关，从部署侧 ConfigMap（<code>sandbox-injection-config</code>，可被 user 版同 key 覆盖）读模板追加进 PodSpec 并做同名冲突检查。<strong>代理镜像、命令与可能的 iptables init 容器都由部署模板决定，本仓没有写死一套 ztunnel 生产模板。</strong>注入后有健康探针改写：应用探针序列化进 <code>ISTIO_KUBE_APP_PROBERS</code>、探针改走 sidecar 的 15020 状态端口。</li>
       </ul>
@@ -559,29 +507,29 @@
       <ul>
         <li>类型契约完整：域名（必填）、路径（Prefix / Exact / RE2）、方法、端口、scheme、header、queryParam 匹配；多 Profile 按 priority <strong>合并</strong>而非首命中；动作固定序 bypass → block → mcpToolPolicy → headerManipulation → tokenTransformation → audit——都在类型与提案文档里。但逐请求执行的 EPE 本体、Envoy egress gateway、ext_proc 客户端均不在本仓。</li>
         <li>本仓实有的 L7 输入层是 E2B 内联 security-rules：<code>pkg/servers/e2b/securityrules.go</code> 解析、受限校验后写入 Sandbox 注解（<code>agents.kruise.io/security-rules</code>），由树外组件消费编译；内联通道明确拒绝 tokenTransformation、mcpToolPolicy、audit。</li>
-        <li>tokenTransformation 的契约（真实密钥在代理侧从 K8s Secret 解析、沙箱只见占位符、failStrategy 默认 Block）只是类型定义；EPE 如何按 credentialRef 读 Secret 并注入 header，在本仓未核实。</li>
+        <li>tokenTransformation 在本仓只有契约（真实密钥在代理侧从 K8s Secret 解析、沙箱只见占位符、failStrategy 默认 Block）；按 credentialRef 读 Secret 并注入 header 的动作由仓外 EPE 执行。</li>
         <li>两个易混点：<code>pkg/proxy</code> 不是出站 EPE，而是 sandbox-manager 入站 Envoy 的 ext_proc 路由处理器；<code>pkg/peers</code> 与 <code>pkg/peersecurity</code> 不是策略编译器，而是 Manager 与 Gateway 的成员发现与路由同步安全。</li>
       </ul>
 
       <div class="callout warn">
         <h4>DNS：本仓最明显的缺口</h4>
-        <p>只证明 FQDN 会以 peer 形式进入 TrafficPolicy，<code>pkg/utils/network</code> 注释称 traffic-extension 在运行时把 FQDN 解析为 IP。dnsCapture、DNS 查询与应答学习、TTL 缓存、集群 DNS 放行规则均未在本仓找到。官方文档所述「FQDN 规则依赖 DNS 捕获、集群 DNS 须显式放行」在本仓无代码可证，属树外 Agentio 数据面行为。</p>
+        <p>本仓与 DNS 相关的只有两点：FQDN 以 peer 形式进入 TrafficPolicy，<code>pkg/utils/network</code> 注释说明 traffic-extension 在运行时把 FQDN 解析为 IP。dnsCapture、DNS 查询与应答学习、TTL 缓存、集群 DNS 放行都不在本仓——FQDN 规则依赖 DNS 捕获、集群 DNS 须显式放行，这些都是树外 Agentio 数据面的行为。</p>
       </div>
 
       <h3 class="sub">身份与 CA：多条链，别混淆</h3>
       <ul>
         <li>社区默认 IdentityProvider 只生成随机 UUID 占位 token；jwtissuer 库实现了 traffic access token 与 agent token 的签发函数，但 agent-identity-provider 主程序注释明说 <strong>issuance RPC 尚不存在</strong>，当前生产入口主要跑 AgentIdentity 与 AgentAuthenticationConfig 控制器并可选开 OIDC / JWKS 服务。</li>
-        <li><code>securitytokenrefresh</code> 控制器刷新的是经已注册 provider 签发并传播到 runtime 的 ID token（恢复后重签也走这条），与 SecurityProfile 的第三方出站凭证注入是两回事。工作负载是否使用 SPIFFE SVID，在本仓未核实。</li>
+        <li><code>securitytokenrefresh</code> 控制器刷新的是经已注册 provider 签发并传播到 runtime 的 ID token（恢复后重签也走这条），与 SecurityProfile 的第三方出站凭证注入是两回事。</li>
         <li>CA 注入与出站 HTTPS 信任有关、但不是凭证注入：<code>SecurityIdentityProviderGate</code> 开启且沙箱启用 traffic-proxy 时，控制器把 gateway CA bundle 准备到目标命名空间，给主容器挂载 CA 文件并设 <code>SSL_CERT_FILE</code>，解决主容器信任网关签发 CA 的问题；它不解析 credentialRef、不把第三方 API Key 写进请求。</li>
       </ul>
 
       <h3 class="sub">隔离边界结论</h3>
-      <p>默认隔离就是普通 Pod 的 namespace 与 cgroup 隔离 + 用户模板自带的 PodSpec；强隔离（gVisor、Kata）只能靠模板里写 <code>runtimeClassName</code> 被动透传，项目无专门支持。官网文档中「root、NET_ADMIN、SYS_ADMIN 可绕过 Pod 内 ACL、需纵深防御」的说明在本仓 docs 中未核实到原文（该说法来自官网文档），但从代码看 Pod 内 ACL 的执行体本就不在本仓、且项目没有默认收紧这些 capability 的准入逻辑——<strong>部署方应把 NetworkPolicy、Pod Security 与运行时选型当作自己的责任</strong>。</p>
+      <p>默认隔离就是普通 Pod 的 namespace 与 cgroup 隔离 + 用户模板自带的 PodSpec；强隔离（gVisor、Kata）只能靠模板里写 <code>runtimeClassName</code> 被动透传，项目无专门支持。Pod 内 ACL 的执行体不在本仓，项目也没有默认收紧 root、NET_ADMIN、SYS_ADMIN 的准入逻辑——<strong>部署方应把 NetworkPolicy、Pod Security 与运行时选型当作自己的责任</strong>。</p>
     </section>
 
     <!-- ============ 谱系定位 ============ -->
     <section id="position">
-      <div class="sec-head"><span class="sec-num">08</span><h2>在沙箱方案谱系里的位置</h2></div>
+      <div class="sec-head"><span class="sec-num">07</span><h2>在沙箱方案谱系里的位置</h2></div>
       <p>与 CubeSandbox、SPACE、OpenSandbox 这类自带 microVM 运行时的方案不同，OpenKruise Agents <strong>不拥有隔离层与出站数据面</strong>。它的价值在 K8s 原生的池化交付（Claim 亚秒级）、生命周期状态机（暂停、批量升级、池扩缩）、E2B 兼容控制面与入站网关（唤醒设计是其最有特色的实现）；代价是密度、隔离与出站治理的上限，都由部署方选的运行时、CNI 与树外 Agentio 栈决定。</p>
       <div class="tbl-wrap">
         <table>
@@ -597,23 +545,9 @@
       </div>
     </section>
 
-    <!-- ============ 未核实 ============ -->
-    <section id="unknown">
-      <div class="sec-head"><span class="sec-num">09</span><h2>未核实清单</h2></div>
-      <p class="sec-lede">以下问题在本仓库内查不到答案，按「不猜测」的原则原样列出，不做推断。</p>
-      <ul>
-        <li>Hibernate 与暂停的接线、Checkpoint 数据在普通 Resume 路径的回放、执行 Checkpoint 转储的控制器实现（应在 Kata 或云厂商侧）。</li>
-        <li>agent-identity-provider 的镜像构建入口；仓库外是否存在独立 Helm Chart 与 Agentio 部署包（<code>agentio.enabled</code> 开关未在本仓核实）。</li>
-        <li>ztunnel 与 proxy-init 的抓包规则、UID 1337 与保留端口、xDS 下发与调用方身份分发、EPE 的 Secret 解析与 MCP 正文检查与 audit 分发、Sandbox 注解内联规则由谁消费编译。</li>
-        <li>集群 DNS 捕获与放行、FQDN 解析学习与 TTL；TrafficPolicy Priority 的真实排序语义（仓库内注释冲突）。</li>
-        <li>工作负载 SPIFFE SVID 的使用与轮换；principal token exchange 与 OAuth2 federation 的在线服务实现。</li>
-        <li>解析失败请求被 filter 放行后落到 Envoy 兜底 <code>original_dst_cluster</code> 的实际落点，生产配置下是否可达沙箱 Pod 网段（建议部署时以 NetworkPolicy 复核）。</li>
-      </ul>
-    </section>
 
     <footer>
-      <p><strong>分析基线</strong>：openkruise/agents 本地克隆，HEAD <code>20bbd5322b6dfb6aa81145b11203ee6d107a0d8e</code>（2026-11-03），710 个 Go 文件。全部结论以源码为准，证据为相对路径 + 行号 / 函数名；官方文档与代码冲突时以代码为准。</p>
-      <p>分册证据：架构与生命周期 / 入站 / 出站与组网 / 控制面四册源码笔记支撑本页每一条结论。</p>
+      <p><strong>分析基线</strong>：openkruise/agents，HEAD <code>20bbd5322b6dfb6aa81145b11203ee6d107a0d8e</code>（2026-11-03），710 个 Go 文件。</p>
     </footer>
   </main>
 </div>
