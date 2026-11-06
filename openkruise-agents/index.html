@@ -15,6 +15,7 @@
     --ink:#1a222b; --ink2:#46525f; --ink3:#6d7a87;
     --line:#d8dcd2; --line2:#c3c9bd;
     --accent:#0e6e63; --accent-ink:#0a554d; --accent-soft:#e0efec;
+    --egress:#b23a1f; --egress-soft:#fae7e0;
     --warn:#9a5b00; --warn-bg:#fdf3e0; --warn-line:#e8cf9a;
     --danger:#a3271e; --danger-bg:#fbeae8; --danger-line:#e5b3ae;
     --ok:#2f6b1f; --ok-bg:#ecf4e4;
@@ -27,6 +28,7 @@
       --ink:#e6ebee; --ink2:#a9b6bf; --ink3:#78858f;
       --line:#2a343a; --line2:#39444b;
       --accent:#3ec9b6; --accent-ink:#7fe0d2; --accent-soft:#123b36;
+      --egress:#f0937a; --egress-soft:#3a211b;
       --warn:#e5b45c; --warn-bg:#33270f; --warn-line:#6b5320;
       --danger:#f08a80; --danger-bg:#3a1a17; --danger-line:#71322c;
       --ok:#9ed07e; --ok-bg:#22331a;
@@ -146,6 +148,11 @@
   .svg-m{fill:var(--ink3); font-family:"JetBrains Mono",monospace; font-size:10.5px}
   .svg-arrow{stroke:var(--accent); stroke-width:1.6; fill:none; marker-end:url(#ah)}
   .svg-arrow2{stroke:var(--ink3); stroke-width:1.3; fill:none; stroke-dasharray:4 3; marker-end:url(#ah2)}
+  .svg-box-eg{fill:var(--egress-soft); stroke:var(--egress); stroke-width:1.4}
+  .svg-lane{fill:var(--panel2); stroke:var(--egress); stroke-width:1.3; stroke-dasharray:7 5}
+  .svg-arrow-eg{stroke:var(--egress); stroke-width:1.8; fill:none; marker-end:url(#ahE)}
+  .svg-t-eg{fill:var(--egress); font-family:"Noto Sans SC",sans-serif; font-size:13px; font-weight:700}
+  .svg-m-eg{fill:var(--egress); font-family:"JetBrains Mono",monospace; font-size:10.5px}
 
   /* flow stepper */
   .flow{display:flex; flex-wrap:wrap; gap:8px; margin:16px 0 10px}
@@ -269,13 +276,14 @@
     <!-- ============ 架构 ============ -->
     <section id="arch">
       <div class="sec-head"><span class="sec-num">02</span><h2>整体架构与组件形态</h2></div>
-      <p class="sec-lede">控制面是两个独立 Deployment；数据面网关不是独立进程，而是编成 c-shared .so 与 Envoy 同进程运行，controller、waker、peer server 都寄生在网关进程内。</p>
+      <p class="sec-lede">控制面是两个独立 Deployment；入站数据面网关不是独立进程，而是编成 c-shared .so 与 Envoy 同进程运行，controller、waker、peer server 都寄生在网关进程内。沙箱的出站流量不经这个网关：它在 Pod 内被 traffic-proxy 抓包，先过 ztunnel 的 L4 判定、再过 EPE 的 L7 判定，最后经出口网关 agentio-gateway 离开集群，策略与身份由 agentiod 在旁路编译下发——下图上半画入站，下半画出站。</p>
 
       <figure class="fig">
-        <svg viewBox="0 0 920 470" role="img" aria-label="OpenKruise Agents 架构图">
+        <svg viewBox="0 0 920 782" role="img" aria-label="OpenKruise Agents 架构图（含沙箱出站链路）">
           <defs>
             <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--accent)"/></marker>
             <marker id="ah2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--ink3)"/></marker>
+            <marker id="ahE" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--egress)"/></marker>
           </defs>
           <!-- client -->
           <rect class="svg-box" x="20" y="185" width="120" height="86" rx="8"/>
@@ -301,7 +309,7 @@
           <text class="svg-s" x="798" y="214" text-anchor="middle">上游 envd :49983</text>
           <rect class="svg-box-warn" x="540" y="250" width="340" height="58" rx="6"/>
           <text class="svg-t" x="710" y="272" text-anchor="middle" style="font-size:12px">traffic-proxy（可选注入，模板来自部署侧 ConfigMap）</text>
-          <text class="svg-s" x="710" y="290" text-anchor="middle">执行体在 agentio / ztunnel 仓（Agentio 栈）</text>
+          <text class="svg-s" x="710" y="290" text-anchor="middle">ztunnel 边车 + EPE 在此注入 · 出站流量由此抓包（见下方链路）</text>
           <!-- manager -->
           <rect class="svg-box" x="205" y="356" width="230" height="92" rx="8"/>
           <text class="svg-t" x="320" y="382" text-anchor="middle">sandbox-manager</text>
@@ -329,8 +337,51 @@
           <text class="svg-m" x="468" y="330" text-anchor="middle">informer 投影 Sandbox CR</text>
           <path class="svg-arrow2" d="M766 402 H750"/>
           <path class="svg-arrow2" d="M520 402 H435"/>
+          <!-- egress lane: sandbox outbound via Agentio stack -->
+          <rect class="svg-lane" x="20" y="478" width="880" height="282" rx="10"/>
+          <text class="svg-t-eg" x="40" y="508">沙箱出站链路 · Agentio 栈（traffic-proxy 开启时）</text>
+          <text class="svg-m-eg" x="880" y="508" text-anchor="end">实线 = 出站数据面 · 虚线 = 策略 / 身份下发</text>
+          <rect class="svg-box-eg" x="545" y="522" width="335" height="68" rx="8"/>
+          <text class="svg-t" x="712" y="547" text-anchor="middle">agentiod · 出站控制面</text>
+          <text class="svg-s" x="712" y="567" text-anchor="middle">KRT 编译 TrafficPolicy · Delta xDS :15012</text>
+          <text class="svg-s" x="712" y="585" text-anchor="middle">内置 CA 签 SPIFFE SVID · FQDN 主动解析展开 IP</text>
+          <path class="svg-arrow2" d="M620 590 C 620 612, 420 606, 300 616"/>
+          <path class="svg-arrow2" d="M712 590 V616"/>
+          <path class="svg-arrow2" d="M800 590 C 800 612, 700 606, 645 616"/>
+          <rect class="svg-box" x="30" y="618" width="162" height="92" rx="8"/>
+          <text class="svg-t" x="111" y="642" text-anchor="middle" style="font-size:12px">沙箱业务容器</text>
+          <text class="svg-s" x="111" y="661" text-anchor="middle">出站连接被抓包改道</text>
+          <text class="svg-s" x="111" y="679" text-anchor="middle">proxy-init 写 REDIRECT</text>
+          <text class="svg-m" x="111" y="697" text-anchor="middle">istio-iptables · -u 1337</text>
+          <rect class="svg-box-eg" x="202" y="618" width="162" height="92" rx="8"/>
+          <text class="svg-t" x="283" y="642" text-anchor="middle" style="font-size:12px">ztunnel 边车 · L4</text>
+          <text class="svg-s" x="283" y="661" text-anchor="middle">TrafficPolicy 本地判定</text>
+          <text class="svg-s" x="283" y="679" text-anchor="middle">peer · 协议 · 端口</text>
+          <text class="svg-m" x="283" y="697" text-anchor="middle">入 15001 · 出 15006</text>
+          <rect class="svg-box-eg" x="374" y="618" width="162" height="92" rx="8"/>
+          <text class="svg-t" x="455" y="642" text-anchor="middle" style="font-size:12px">EPE · L7</text>
+          <text class="svg-s" x="455" y="661" text-anchor="middle">按 SecurityProfile 判定</text>
+          <text class="svg-s" x="455" y="679" text-anchor="middle">工具策略 · 正文检查</text>
+          <text class="svg-m" x="455" y="697" text-anchor="middle">凭证替换 · audit 异步</text>
+          <rect class="svg-box-eg" x="546" y="618" width="162" height="92" rx="8"/>
+          <text class="svg-t" x="627" y="642" text-anchor="middle" style="font-size:12px">agentio-gateway</text>
+          <text class="svg-s" x="627" y="661" text-anchor="middle">出口网关 · Envoy v1.40.2</text>
+          <text class="svg-s" x="627" y="679" text-anchor="middle">自研 agent + Rust 扩展</text>
+          <text class="svg-m" x="627" y="697" text-anchor="middle">porter 处理 HBONE / SNI</text>
+          <rect class="svg-box" x="718" y="618" width="162" height="92" rx="8"/>
+          <text class="svg-t" x="799" y="642" text-anchor="middle" style="font-size:12px">外部服务 / 互联网</text>
+          <text class="svg-s" x="799" y="661" text-anchor="middle">目标 API · 模型服务</text>
+          <text class="svg-s" x="799" y="679" text-anchor="middle">Web · 第三方接口</text>
+          <text class="svg-m" x="799" y="697" text-anchor="middle">放行后直达目标地址</text>
+          <path class="svg-arrow-eg" d="M192 664 H202"/>
+          <path class="svg-arrow-eg" d="M364 664 H374"/>
+          <path class="svg-arrow-eg" d="M536 664 H546"/>
+          <path class="svg-arrow-eg" d="M708 664 H718"/>
+          <text class="svg-s" x="460" y="736" text-anchor="middle">EPE 只透传 provider 名，真实凭证由外部 provider 服务（部署方自备）解析 · TLS 检查的叶证书由 agentiod 的 MITM CA 签发（15 分钟）</text>
+          <path class="svg-arrow-eg" d="M600 308 C 600 338, 520 344, 492 378 V520 C 492 575, 300 600, 116 614"/>
+          <text class="svg-m-eg" x="484" y="432" text-anchor="end">出站流量</text>
         </svg>
-        <figcaption>控制面（下）与数据面（上）全景。虚线框 = 执行体在 agentio / ztunnel 仓的组件；网关转发不经 K8s Service、不做 DNS，后端地址来自进程内路由表。</figcaption>
+        <figcaption>上：入站与控制面——网关转发不经 K8s Service、不做 DNS，后端地址来自进程内路由表。下：沙箱出站——业务流量在 Pod 内被 proxy-init 抓包，经 ztunnel（L4）与 EPE（L7）两级判定后由 agentio-gateway 送往外部，agentiod 以虚线下发策略、身份与解析结果。</figcaption>
       </figure>
 
       <div class="tbl-wrap">
@@ -344,6 +395,11 @@
             <tr><td>agent-runtime</td><td>Pod 内原生 sidecar（initContainer + restartPolicy Always）</td><td>投递上游 envd 二进制并拉起（49983）；另含 CSI 动态挂载 storage-cli</td></tr>
             <tr><td>agent-identity-provider</td><td>独立 Deployment（默认不随 config/default 安装）</td><td>AgentIdentity 与 AgentAuthenticationConfig 控制器，可选 OIDC discovery / JWKS 端点（8443）；其签发 RPC 尚不存在（主程序注释明示）</td></tr>
             <tr><td>commit-job</td><td>Commit 控制器按需创建的一次性 Job</td><td>调度到源 Pod 所在节点，挂宿主机 containerd 目录，用 nerdctl commit + push 把容器可写层固化成镜像</td></tr>
+            <tr><td>agentiod</td><td>独立 Deployment（agentio 仓构建）</td><td>出站控制面：增量 KRT 编译 TrafficPolicy、自研 xDS（仅 Delta 推送，15012）、内置 CA 签发 SPIFFE SVID、FQDN 主动解析后展开为 IP 下发；policystatus 回写策略的 Programmed 资格</td></tr>
+            <tr><td>proxy-init</td><td>Pod 内 init 容器（镜像按 digest 引用，不在任何仓构建）</td><td>跑 Istio 的 istio-iptables 写 REDIRECT 规则把出站流量抓进边车：<code>-p 15001</code>、<code>-z 15006</code>、<code>-u 1337</code>，排除 15090 / 15021 / 15020</td></tr>
+            <tr><td>ztunnel</td><td>Pod 内边车（沙箱模式）；节点 ambient 模式为每节点 DaemonSet（Alpha）</td><td>L4 执行体（ztunnel 仓，Rust 补丁版）：按 agentiod 下发的 TrafficPolicy 与 Authorization 在本地判定 peer、协议与端口；沙箱侧 DNS 流量由其 DNS capture 处理</td></tr>
+            <tr><td>agentio-epe（EPE）</td><td>随 traffic-proxy 注入的 L7 执行体（agentio 仓构建）</td><td>自 watch 并编译 SecurityProfile，逐请求执行写死顺序的 filter 链（bypass → block → mcpacl → headermutation → httpcallout → tokentransform → oauth2）：工具策略、正文检查、凭证占位符替换点与 audit；真实凭证由外部 provider 服务解析</td></tr>
+            <tr><td>agentio-gateway</td><td>独立网关（官方 Envoy v1.40.2 + 自研 gateway-agent + 3 个 Rust 原生扩展）</td><td>出口网关，已取代 proxyv2；网关侧连接处理器 agentio-porter（Rust）解析 HBONE CONNECT 的来源 Workload 与 SNI 策略</td></tr>
             <tr><td>okactl</td><td>本地 CLI（直连 K8s API，不经 manager）</td><td>五条运维命令：scale sandboxset、set image、create suo、restart sandbox、status</td></tr>
           </tbody>
         </table>
