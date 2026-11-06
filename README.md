@@ -8,7 +8,7 @@
 
 | 日期 | 产物 | 说明 | 链接 |
 |---|---|---|---|
-| 2026-11-04 | OpenKruise Agents 沙箱源码分析 | 基于源码 HEAD 20bbd53（710 个 Go 文件）逐项核实：Sandbox 本质是标准 Pod、17 个 CRD、预热池 Claim 与删 Pod 式 Pause、与 Envoy 同进程的 Go filter 入站网关与流量唤醒、出站 L4/L7 只有契约在本仓而执行在仓外；含整体架构图与入站六步步进演示 | [在线浏览](https://hazirguo.github.io/technical-analysis-notes/openkruise-agents/) · [源码目录](./openkruise-agents/) |
+| 2026-11-04 | OpenKruise Agents 沙箱源码分析 | 基于源码 HEAD 20bbd53（710 个 Go 文件）逐项核实：Sandbox 本质是标准 Pod、17 个 CRD、预热池 Claim 与删 Pod 式 Pause、与 Envoy 同进程的 Go filter 入站网关与流量唤醒、出站由独立的 Agentio 栈实现（agentiod 策略编译与 DNS 主动解析、EPE 的 L7 执行、ztunnel 的 L4 执行，三仓记账）；含整体架构图与入站、出站双步进演示 | [在线浏览](https://hazirguo.github.io/technical-analysis-notes/openkruise-agents/) · [源码目录](./openkruise-agents/) |
 | 2026-10-28 | 近期模型安全失控案例汇总 | 21 条案例分三类：A 真实逃逸/越界 7 起（Anthropic 四模型逃逸核实与三点修正、OpenAI 入侵 Hugging Face、DNS 隧道等）、B 部署事故 3 起、C 受控评测 11 条；附 13 种 containment 失效模式对照与 10 条沙箱工程师清单；可按类别筛选与关键词搜索 | [在线浏览](https://hazirguo.github.io/technical-analysis-notes/model-safety-incidents/) · [源码目录](./model-safety-incidents/) |
 | 2026-10-26 | Muse 平台技术架构图 | 六层分层总览、一次请求的 7 步生命周期、Agent 协作拓扑、记忆系统、安全与信任边界、核心组件速览；可点击交互 | [在线浏览](https://hazirguo.github.io/technical-analysis-notes/muse-architecture/) · [源码目录](./muse-architecture/) |
 | 2026-10-22 | vhost-xx 设备原理与场景 | 8 章：纯 virtio 三笔税、四种后端（纯 QEMU / vhost-net / vhost-user+DPDK / vDPA）数据面路径实验室、virtqueue 三环演示、7 步建立流程、9 个家族成员图鉴、拷贝次数对比、6 个应用场景、两问选型速判 | [在线浏览](https://hazirguo.github.io/technical-analysis-notes/vhost-xx/) · [源码目录](./vhost-xx/) |
