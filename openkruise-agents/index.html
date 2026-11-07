@@ -449,18 +449,122 @@
 
     <!-- ============ 控制面 ============ -->
     <section id="control">
-      <div class="sec-head"><span class="sec-num">04</span><h2>控制面：三层架构、E2B 兼容与配额</h2></div>
-      <p class="sec-lede">分层与仓库根 AGENTS.md 契约基本吻合：API 层 <code>pkg/servers</code>（路由、协议模型、校验、状态码映射）→ Manager 层 <code>pkg/sandbox-manager</code>（业务用例、配额编排、路由同步、流量令牌）→ Infra 层 <code>pkg/sandbox-manager/infra</code>（唯一具体实现 sandboxcr）。唯一越界是 API 层有 9 个文件直接 import infra 的中立类型（不调用其实现），属契约自认的遗留债务。</p>
+      <div class="sec-head"><span class="sec-num">04</span><h2>控制面：两层管理面协作、三层架构、E2B 兼容与配额</h2></div>
+      <p class="sec-lede">这套系统有两层管理面，协作方式是单向的 CR 契约：<strong>sandbox-manager 是翻译层</strong>，把 E2B 的 HTTP 语义翻译成 CR 操作；<strong>K8s apiserver 是两层之间唯一的总线与事实源</strong>，17 个 CRD 就是全部状态；<strong>agent-sandbox-controller 是执行层</strong>，把 CR 变成 Pod。manager 从不直接碰 Pod 与 kubelet——它对沙箱的全部动作都是改某个 CR 的 spec，全部观察都是读某个 CR 的 status；manager 本身无本地状态，多副本靠 memberlist 同步路由表。</p>
+      <p>manager 内部再分三层，与仓库根 AGENTS.md 契约基本吻合：API 层 <code>pkg/servers</code>（路由、协议模型、校验、状态码映射）→ Manager 层 <code>pkg/sandbox-manager</code>（业务用例、配额编排、路由同步、流量令牌）→ Infra 层 <code>pkg/sandbox-manager/infra</code>（唯一具体实现 sandboxcr）。唯一越界是 API 层有 9 个文件直接 import infra 的中立类型（不调用其实现），属契约自认的遗留债务。</p>
 
-      <h3 class="sub">创建沙箱全链路（代码级）</h3>
+      <h3 class="sub">两层管理面怎么协作</h3>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>维度</th><th>谁负责</th><th>怎么协作</th></tr></thead>
+          <tbody>
+            <tr><td>状态存储</td><td>K8s apiserver</td><td>Sandbox、SandboxSet、SandboxClaim、TrafficPolicy 等 17 个 CRD 是唯一事实源；manager 无本地状态</td></tr>
+            <tr><td>执行</td><td>agent-sandbox-controller</td><td>7 个 controller watch CR 做 reconcile：Sandbox CR 一出现就同名建 Pod、注入 sidecar、把 PodIP 回写到 <code>Sandbox.Status.PodInfo</code></td></tr>
+            <tr><td>预热</td><td>SandboxSet controller</td><td>提前把 Sandbox CR 与 Pod 批量建好待命；Claim 只是改注解锁定一个现成的，K8s 调度不在创建热路径上</td></tr>
+            <tr><td>暂停 / 恢复</td><td>两层接力</td><td>manager 改 <code>spec.paused=true</code> → controller 删 Pod；恢复反过来，controller 重建 Pod 并 Ready 后，manager 侧的 initializer 再做 runtime 重初始化、重签令牌、重挂 CSI</td></tr>
+            <tr><td>策略分发</td><td>K8s API 当通道</td><td>manager 只把 TrafficPolicy CR 写进 apiserver，agentiod 自己 watch 该 CR 编译下发，manager 不直连 agentiod</td></tr>
+            <tr><td>校验</td><td>controller 的 webhook</td><td>CR 写入时的准入校验在 K8s 侧完成</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <figure class="fig">
+        <svg viewBox="0 0 920 470" role="img" aria-label="管理面协作图：以 E2B 接口创建沙箱为例">
+          <defs>
+            <marker id="ahM" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--accent)"/></marker>
+            <marker id="ahM2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--ink3)"/></marker>
+          </defs>
+          <style>
+            .svg-num{fill:var(--accent)}
+            .svg-numt{fill:var(--panel); font-family:"JetBrains Mono",monospace; font-size:11px; font-weight:600}
+          </style>
+          <!-- client -->
+          <rect class="svg-box" x="20" y="46" width="150" height="88" rx="8"/>
+          <text class="svg-t" x="95" y="76" text-anchor="middle">客户端 / E2B SDK</text>
+          <text class="svg-s" x="95" y="96" text-anchor="middle">POST /sandboxes</text>
+          <text class="svg-m" x="95" y="114" text-anchor="middle">templateID</text>
+          <!-- manager -->
+          <rect class="svg-box-acc" x="216" y="16" width="308" height="158" rx="8"/>
+          <text class="svg-t" x="370" y="40" text-anchor="middle">sandbox-manager · 翻译层</text>
+          <rect class="svg-box" x="232" y="52" width="276" height="34" rx="5"/>
+          <text class="svg-s" x="370" y="73" text-anchor="middle">API 层 pkg/servers · CheckApiKey · Team → namespace</text>
+          <rect class="svg-box" x="232" y="92" width="276" height="34" rx="5"/>
+          <text class="svg-s" x="370" y="113" text-anchor="middle">Manager 层 · CreateSandbox 校验与编排</text>
+          <rect class="svg-box" x="232" y="132" width="276" height="34" rx="5"/>
+          <text class="svg-s" x="370" y="153" text-anchor="middle">Infra 层 sandboxcr · 把动作落成 CR</text>
+          <!-- redis -->
+          <rect class="svg-box" x="216" y="216" width="150" height="72" rx="8"/>
+          <text class="svg-t" x="291" y="242" text-anchor="middle" style="font-size:12px">Redis · 配额核算</text>
+          <text class="svg-s" x="291" y="261" text-anchor="middle">count · cpu · memory</text>
+          <text class="svg-m" x="291" y="278" text-anchor="middle">故障时 fail-open</text>
+          <!-- apiserver -->
+          <rect class="svg-box-acc" x="580" y="16" width="320" height="118" rx="8"/>
+          <text class="svg-t" x="740" y="44" text-anchor="middle">K8s apiserver · 总线与事实源</text>
+          <text class="svg-s" x="740" y="66" text-anchor="middle">17 个 CRD 即全部状态</text>
+          <text class="svg-s" x="740" y="84" text-anchor="middle">Sandbox · SandboxSet · SandboxClaim</text>
+          <text class="svg-s" x="740" y="102" text-anchor="middle">TrafficPolicy · Checkpoint …</text>
+          <text class="svg-m" x="740" y="121" text-anchor="middle">webhook 准入校验在 K8s 侧</text>
+          <!-- controller -->
+          <rect class="svg-box" x="580" y="176" width="150" height="80" rx="8"/>
+          <text class="svg-t" x="655" y="202" text-anchor="middle" style="font-size:12px">controller · 执行层</text>
+          <text class="svg-s" x="655" y="221" text-anchor="middle">informer watch CR</text>
+          <text class="svg-s" x="655" y="239" text-anchor="middle">同名建 Pod · 注入 sidecar</text>
+          <!-- pod -->
+          <rect class="svg-box" x="756" y="176" width="144" height="80" rx="8"/>
+          <text class="svg-t" x="828" y="202" text-anchor="middle" style="font-size:12px">Sandbox Pod</text>
+          <text class="svg-s" x="828" y="221" text-anchor="middle">PodIP 回写</text>
+          <text class="svg-m" x="828" y="239" text-anchor="middle">Status.PodInfo</text>
+          <!-- preheat pool -->
+          <rect class="svg-box-warn" x="580" y="292" width="320" height="66" rx="8"/>
+          <text class="svg-t" x="740" y="318" text-anchor="middle" style="font-size:12px">预热池 · SandboxSet 提前建好 CR + Pod 待命</text>
+          <text class="svg-s" x="740" y="338" text-anchor="middle">Claim 只改注解锁定现成的 · 热路径无 K8s 调度</text>
+          <!-- gateway -->
+          <rect class="svg-box" x="20" y="330" width="160" height="66" rx="8"/>
+          <text class="svg-t" x="100" y="356" text-anchor="middle" style="font-size:12px">入站网关</text>
+          <text class="svg-s" x="100" y="375" text-anchor="middle">syncRoute 同步路由</text>
+          <!-- agentiod -->
+          <rect class="svg-box" x="216" y="330" width="160" height="66" rx="8"/>
+          <text class="svg-t" x="296" y="356" text-anchor="middle" style="font-size:12px">agentiod</text>
+          <text class="svg-s" x="296" y="375" text-anchor="middle">watch TrafficPolicy CR</text>
+          <!-- okactl -->
+          <rect class="svg-box-warn" x="412" y="330" width="150" height="66" rx="8"/>
+          <text class="svg-t" x="487" y="356" text-anchor="middle" style="font-size:12px">okactl · 运维 CLI</text>
+          <text class="svg-s" x="487" y="375" text-anchor="middle">直连 K8s API 改 CR</text>
+          <!-- arrows -->
+          <path class="svg-arrow" d="M170 90 H216"/>
+          <circle class="svg-num" cx="193" cy="90" r="10"/><text class="svg-numt" x="193" y="94" text-anchor="middle">1</text>
+          <path class="svg-arrow" d="M291 216 V178"/>
+          <circle class="svg-num" cx="291" cy="197" r="10"/><text class="svg-numt" x="291" y="201" text-anchor="middle">2</text>
+          <path class="svg-arrow" d="M524 75 H580"/>
+          <circle class="svg-num" cx="552" cy="75" r="10"/><text class="svg-numt" x="552" y="79" text-anchor="middle">3</text>
+          <path class="svg-arrow" d="M700 134 V176"/>
+          <circle class="svg-num" cx="700" cy="155" r="10"/><text class="svg-numt" x="700" y="159" text-anchor="middle">4</text>
+          <path class="svg-arrow" d="M730 216 H756"/>
+          <path class="svg-arrow2" d="M655 256 C 655 300, 480 268, 420 178"/>
+          <circle class="svg-num" cx="520" cy="252" r="10"/><text class="svg-numt" x="520" y="256" text-anchor="middle">5</text>
+          <text class="svg-m" x="528" y="238">status 回流 · 等 CR Ready</text>
+          <path class="svg-arrow2" d="M300 174 C 260 240, 160 260, 108 326"/>
+          <circle class="svg-num" cx="212" cy="252" r="10"/><text class="svg-numt" x="212" y="256" text-anchor="middle">6</text>
+          <path class="svg-arrow2" d="M495 330 C 520 280, 545 220, 560 140"/>
+          <path class="svg-arrow2" d="M280 174 C 260 214, 150 214, 102 138"/>
+          <circle class="svg-num" cx="182" cy="206" r="10"/><text class="svg-numt" x="182" y="210" text-anchor="middle">7</text>
+          <text class="svg-m" x="60" y="420">⑥ 路由同步给网关、TrafficPolicy CR 经 apiserver 交 agentiod &nbsp;·&nbsp; ⑦ 组装 E2B 对象返回 201</text>
+          <text class="svg-m" x="60" y="442">删除同理：删 CR 即删沙箱，Pod 由 ownerRef 垃圾回收 · 虚线 = status 回流 / 同步 / 旁路</text>
+        </svg>
+        <figcaption>以 E2B 接口创建沙箱（模板 Claim 路径）为例的管理面协作：编号 1–7 与下方链路一一对应。manager 与 Pod 之间没有直连通道，Pod 状态只经 CR status 回流；预热池提前建好 CR 与 Pod 待命，Claim 的热路径上没有 K8s 调度。</figcaption>
+      </figure>
+
+      <h3 class="sub">创建沙箱全链路：七步走完一次 Claim</h3>
       <ol class="chain">
-        <li><span class="t">POST /v2/sandboxes 进入</span><p>先过 <code>CheckApiKey</code> 中间件：认证 + 沙箱归属校验，归属不符与不存在返回同样的 404 防枚举。</p></li>
-        <li><span class="t">Controller.CreateSandbox</span><p>模板命中走 <code>createSandboxWithClaim</code>。</p></li>
-        <li><span class="t">Manager.ClaimSandbox</span><p>注入配额准入与短 ID 分配（Sonyflake 13 字符 Base32）。</p></li>
-        <li><span class="t">Infra.TryClaimSandbox</span><p>挑池 → 配额记账 → 锁定 → 后处理：换镜像与资源、初始化 agent-runtime、CSI 挂载、等 Pod Ready。</p></li>
-        <li><span class="t">syncRoute + 写 TrafficPolicy</span><p>回程把路由同步给对等节点，再按出站规则写 TrafficPolicy CR。</p></li>
-        <li><span class="t">convertToE2BSandbox 组装响应</span><p>返回 201。Clone 路径同构，差别是从 Checkpoint 恢复。</p></li>
+        <li><span class="t">请求进 manager 的 API 层</span><p><code>POST /sandboxes</code>（带 templateID）先过 <code>CheckApiKey</code> 中间件：校验 API Key，并把 Key 所属 Team 映射成同名 K8s namespace——非管理员团队的沙箱只能落在自己团队的 namespace 里，租户隔离在这一层落成。归属校验时，归属不符与不存在返回同样的 404 防枚举。</p></li>
+        <li><span class="t">Manager 层编排，配额先行</span><p><code>CreateSandbox</code> 先校验请求（<code>egressProxy</code>、<code>maskRequestHost</code> 非空直接 400，这是 E2B 有而它不支持的字段），解析 templateID 到 SandboxTemplate CR 后走 Claim 路径，并分配短 ID（Sonyflake 13 字符 Base32）；配额在 Redis 里先核算——只有 sandbox.count、limits.cpu、limits.memory 三个维度，核算在锁沙箱之前完成，Redis 故障时 fail-open 放行。</p></li>
+        <li><span class="t">Infra 层把动作落成 CR</span><p><code>TryClaimSandbox</code> 从 SandboxSet 预热池挑一个未认领的 Sandbox，挑中的标志是改这个 Sandbox CR 的注解（加锁、写入 claim 信息）；池里没货且允许直建时，才按模板新建一个 Sandbox CR。认领后加工仍全是 CR 操作：按请求改首容器镜像、走 <code>pods/resize</code> 子资源调资源、初始化 agent-runtime、按注解做 CSI 运行时挂载。</p></li>
+        <li><span class="t">controller 把 CR 变成 Pod</span><p>agent-sandbox-controller 经 informer watch 到 CR，同名建 Pod、注入 sidecar，并把 PodIP 回写到 <code>Sandbox.Status.PodInfo</code>。这一步完全异步：manager 不参与建 Pod，只在下一步等结果。</p></li>
+        <li><span class="t">状态只经 CR status 回流</span><p>manager 等 Sandbox CR 的状态变 Ready 即视为创建完成并返回——它等的是 CR status，不是 Pod 本身，两者之间没有任何直连通道。</p></li>
+        <li><span class="t">收尾两个数据面接点</span><p><code>syncRoute</code> 把路由同步给入站网关（网关路由表由 Sandbox CR 的 informer 加副本间 <code>/refresh</code> 推送维护，不走 K8s Service）；再按请求的 <code>allowOut</code> / <code>denyOut</code> 生成一个单沙箱 TrafficPolicy CR 写入 apiserver，agentiod 自己 watch 编译，manager 不直连 agentiod。删除方向同理能说明分工：创建后若网络策略创建失败，API 层会主动删掉刚建的 Sandbox 回滚——在它的视角里删 CR 就等于删沙箱，Pod 回收由 controller 经 ownerRef 垃圾回收完成。</p></li>
+        <li><span class="t">组装 E2B 响应返回 201</span><p><code>convertToE2BSandbox</code> 把 Sandbox CR 转成 E2B 的 Sandbox 对象返回。Clone（从快照建）与这条链同构，差别只是多一步从 Checkpoint CR 恢复。</p></li>
       </ol>
+      <p>唯一的例外是运维 CLI <code>okactl</code>：它绕过 manager、直接调 K8s API 改 CR（扩缩池、换镜像、重启沙箱）。这反过来证明 CR 层才是这套系统真实的管理面，E2B 接口只是它的一个前端。</p>
 
       <div class="cols2">
         <div class="col">
