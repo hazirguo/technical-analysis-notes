@@ -983,6 +983,132 @@
         </svg>
         <figcaption>一次调用的完整接力：第 0 步事前埋点（域名预解析展开 IP、CA 包挂载、profile 预编译）决定了后面每一步能否成立；请求本体经抓包改道、L4 匹配、网关解密、EPE 换凭证四道关后才以真实 Key 出网。两个对照说明判定为何分两级：元数据地址在 Pod 内就被 L4 拦下，白名单域名上的越界路径则要到网关侧的 L7 才拦得住。</figcaption>
       </figure>
+      <h3 class="sub">时序图：同一次 HTTPS 请求从 TCP 建链到报文封装</h3>
+      <p>把上例放回时间轴上看报文的形态变化：应用的 TCP 握手在 Pod 内就被 ztunnel 接住、网络上还没出去任何包；真正出 Pod 的是代理之间另建的一条 HBONE 连接；应用的 TLS 只在网关处被终结一次，Envoy 在另一侧与真实上游另建会话②。Pod 到网关这一跳的线缆上，同一份 HTTP 明文被五层封装套住。</p>
+      <figure class="fig">
+        <svg viewBox="0 0 920 1120" role="img" aria-label="HTTPS 请求时序图：从 TCP 建链、HBONE 建隧道、假目标 TLS 握手、网关剥封装问询 EPE 与换凭证，到响应原路返回，含五层封装剖面">
+          <defs>
+            <marker id="ahS" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--egress)"/></marker>
+            <marker id="ahS2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--ink3)"/></marker>
+            <marker id="ahS3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--accent)"/></marker>
+          </defs>
+          <style>
+            .seq-life{stroke:var(--line2); stroke-width:1.2; stroke-dasharray:5 5}
+            .seq-a{stroke:var(--egress); stroke-width:1.6; fill:none; marker-end:url(#ahS)}
+            .seq-r{stroke:var(--accent); stroke-width:1.5; fill:none; marker-end:url(#ahS3)}
+            .seq-d{stroke:var(--ink3); stroke-width:1.3; fill:none; stroke-dasharray:4 3; marker-end:url(#ahS2)}
+            .seq-phase{fill:var(--egress); font-family:"Noto Sans SC",sans-serif; font-size:12.5px; font-weight:700}
+            .seq-note{fill:var(--panel2); stroke:var(--line2); stroke-width:1}
+          </style>
+          <!-- participants -->
+          <rect class="svg-box" x="18" y="14" width="154" height="56" rx="8"/>
+          <text class="svg-t" x="95" y="38" text-anchor="middle" style="font-size:12px">沙箱内 agent</text>
+          <text class="svg-s" x="95" y="56" text-anchor="middle">业务容器 · 应用进程</text>
+          <rect class="svg-box-eg" x="198" y="14" width="154" height="56" rx="8"/>
+          <text class="svg-t" x="275" y="38" text-anchor="middle" style="font-size:12px">ztunnel 边车</text>
+          <text class="svg-s" x="275" y="56" text-anchor="middle">同 Pod · :15006</text>
+          <rect class="svg-box-eg" x="380" y="14" width="170" height="56" rx="8"/>
+          <text class="svg-t" x="465" y="38" text-anchor="middle" style="font-size:12px">agentio-gateway</text>
+          <text class="svg-s" x="465" y="56" text-anchor="middle">porter + Envoy</text>
+          <rect class="svg-box-eg" x="578" y="14" width="144" height="56" rx="8"/>
+          <text class="svg-t" x="650" y="38" text-anchor="middle" style="font-size:12px">EPE · L7（旁挂）</text>
+          <text class="svg-s" x="650" y="56" text-anchor="middle">ext_proc 裁判</text>
+          <rect class="svg-box" x="750" y="14" width="152" height="56" rx="8"/>
+          <text class="svg-t" x="826" y="38" text-anchor="middle" style="font-size:12px">api.openai.com</text>
+          <text class="svg-s" x="826" y="56" text-anchor="middle">真实上游服务</text>
+          <!-- lifelines -->
+          <line class="seq-life" x1="95" y1="70" x2="95" y2="1010"/>
+          <line class="seq-life" x1="275" y1="70" x2="275" y2="1010"/>
+          <line class="seq-life" x1="465" y1="70" x2="465" y2="1010"/>
+          <line class="seq-life" x1="650" y1="70" x2="650" y2="1010"/>
+          <line class="seq-life" x1="826" y1="70" x2="826" y2="1010"/>
+
+          <!-- Phase 1 -->
+          <rect class="svg-lane" x="18" y="86" width="884" height="128" rx="8"/>
+          <text class="seq-phase" x="34" y="110">阶段一 · TCP 建链被截获 —— 只有半次握手是「真的」</text>
+          <path class="seq-a" d="M95 128 H275"/>
+          <text class="svg-s" x="185" y="120" text-anchor="middle">SYN 发起连接 → 撞 REDIRECT</text>
+          <path class="seq-r" d="M275 152 H95"/>
+          <text class="svg-s" x="185" y="144" text-anchor="middle">SYN-ACK · 握手在 Pod 内完成</text>
+          <rect class="seq-note" x="198" y="166" width="330" height="34" rx="6"/>
+          <text class="svg-s" x="363" y="187" text-anchor="middle">此时网络上还没出去任何包 · ztunnel 借机查策略</text>
+          <text class="svg-m" x="363" y="210" text-anchor="middle">SO_ORIGINAL_DST 读原始目的地 → TrafficPolicy L4 判定：送网关治理</text>
+
+          <!-- Phase 2 -->
+          <rect class="svg-lane" x="18" y="230" width="884" height="168" rx="8"/>
+          <text class="seq-phase" x="34" y="254">阶段二 · 代理之间建 HBONE 隧道 —— 身份靠证书、目的地靠 :authority</text>
+          <path class="seq-a" d="M275 276 H465"/>
+          <text class="svg-s" x="370" y="268" text-anchor="middle">TCP 三次握手 → 网关 :15008</text>
+          <path class="seq-a" d="M275 304 H465"/>
+          <text class="svg-s" x="370" y="296" text-anchor="middle">mTLS 握手 · 双方出示 SVID 证书 · ALPN=h2</text>
+          <path class="seq-a" d="M275 332 H465"/>
+          <text class="svg-m" x="370" y="324" text-anchor="middle">HTTP/2 CONNECT · :authority = api.openai.com:443</text>
+          <path class="seq-r" d="M465 360 H275"/>
+          <text class="svg-s" x="370" y="352" text-anchor="middle">:status 200 · porter 已认出源 SPIFFE 身份</text>
+          <text class="svg-m" x="600" y="382" text-anchor="middle">这条 HTTP/2 长连接之后复用：新请求只开新流，不再重复握手</text>
+
+          <!-- Phase 3 -->
+          <rect class="svg-lane" x="18" y="414" width="884" height="182" rx="8"/>
+          <text class="seq-phase" x="34" y="438">阶段三 · 应用与「假 OpenAI」握手 —— 同一时刻 Envoy 与真 OpenAI 建会话②</text>
+          <path class="seq-a" d="M95 462 H275"/>
+          <text class="svg-s" x="185" y="454" text-anchor="middle">应用 TLS ClientHello</text>
+          <text class="svg-m" x="185" y="478" text-anchor="middle">SNI = api.openai.com</text>
+          <path class="seq-a" d="M275 492 H465"/>
+          <text class="svg-s" x="370" y="484" text-anchor="middle">ClientHello 原样装进 DATA 帧搬到网关</text>
+          <path class="seq-r" d="M465 520 H95"/>
+          <text class="svg-s" x="280" y="512" text-anchor="middle">回 MITM 叶证书（agentiod CA 现签 · 15 分钟）→ 会话①建立</text>
+          <text class="svg-m" x="280" y="534" text-anchor="middle">agent 因第 0 步挂入的 CA 包而信任它 · 不报证书错误</text>
+          <path class="seq-a" d="M465 562 H826"/>
+          <text class="svg-s" x="645" y="554" text-anchor="middle">并行：Envoy 以自身身份向真上游发起 TLS 握手</text>
+          <path class="seq-r" d="M826 584 H465"/>
+          <text class="svg-s" x="645" y="576" text-anchor="middle">真证书校验通过 → 会话②建立（与会话①相互独立）</text>
+
+          <!-- Phase 4 -->
+          <rect class="svg-lane" x="18" y="612" width="884" height="228" rx="8"/>
+          <text class="seq-phase" x="34" y="636">阶段四 · 请求穿网关 —— 报文转换最密集的一段</text>
+          <path class="seq-a" d="M95 662 H275"/>
+          <text class="svg-m" x="185" y="654" text-anchor="middle">POST（会话①密文）</text>
+          <path class="seq-a" d="M275 690 H465"/>
+          <text class="svg-s" x="370" y="682" text-anchor="middle">HBONE DATA 帧承载 TLS 记录</text>
+          <rect class="seq-note" x="380" y="702" width="360" height="36" rx="6"/>
+          <text class="svg-s" x="560" y="724" text-anchor="middle">Envoy 逐层剥封装 → HTTP 明文现形（占位符在 Authorization 里）</text>
+          <path class="seq-d" d="M465 756 H650"/>
+          <text class="svg-s" x="557" y="748" text-anchor="middle">ext_proc 问询：身份 + 方法 + 路径 + 头</text>
+          <path class="seq-d" d="M650 782 H465"/>
+          <text class="svg-s" x="557" y="774" text-anchor="middle">裁决：放行 · 把 Authorization 换成真实 Key</text>
+          <path class="seq-a" d="M465 812 H826"/>
+          <text class="svg-s" x="645" y="804" text-anchor="middle">用会话②重新加密 · 以真实 Key 发往真上游</text>
+          <text class="svg-m" x="645" y="830" text-anchor="middle">上游只看见网关在说话 · 不知道沙箱的存在</text>
+
+          <!-- Phase 5 -->
+          <rect class="svg-lane" x="18" y="856" width="884" height="154" rx="8"/>
+          <text class="seq-phase" x="34" y="880">阶段五 · 响应逆操作原路返回</text>
+          <path class="seq-r" d="M826 906 H465"/>
+          <text class="svg-s" x="645" y="898" text-anchor="middle">响应（会话②密文）</text>
+          <path class="seq-r" d="M465 934 H275"/>
+          <text class="svg-s" x="370" y="926" text-anchor="middle">剥会话② · 改用会话①加密 · 装回 DATA 帧</text>
+          <path class="seq-r" d="M275 962 H95"/>
+          <text class="svg-s" x="185" y="954" text-anchor="middle">响应密文送回应用</text>
+          <path class="seq-d" d="M465 988 H650"/>
+          <text class="svg-m" x="557" y="980" text-anchor="middle">流结束 → 异步补 audit（不阻塞响应）</text>
+
+          <!-- encapsulation profile -->
+          <text class="svg-t" x="18" y="1042" style="font-size:12px">封装剖面 · Pod → 网关这一跳，线缆上实际跑的字节（由外到内）</text>
+          <rect class="svg-box" x="18" y="1052" width="128" height="40" rx="6"/>
+          <text class="svg-m" x="82" y="1076" text-anchor="middle">TCP（到网关）</text>
+          <rect class="svg-box" x="152" y="1052" width="150" height="40" rx="6"/>
+          <text class="svg-m" x="227" y="1076" text-anchor="middle">HBONE 的 mTLS</text>
+          <rect class="svg-box-eg" x="308" y="1052" width="168" height="40" rx="6"/>
+          <text class="svg-m" x="392" y="1076" text-anchor="middle">HTTP/2 DATA 帧</text>
+          <rect class="svg-box" x="482" y="1052" width="176" height="40" rx="6"/>
+          <text class="svg-m" x="570" y="1076" text-anchor="middle">应用 TLS 记录（会话①）</text>
+          <rect class="svg-box-acc" x="664" y="1052" width="238" height="40" rx="6"/>
+          <text class="svg-s" x="783" y="1076" text-anchor="middle">HTTP 明文 POST /v1/chat/completions</text>
+          <text class="svg-m" x="460" y="1112" text-anchor="middle">Envoy 在网关处把五层逐层剥到明文、执行裁决后，再用会话②重新包好发出 —— 全程只有这一次 TLS 终结</text>
+        </svg>
+        <figcaption>一次 HTTPS 请求的时序全程：阶段一应用的 TCP 握手在 Pod 内被 ztunnel 接住（此时还没有包出 Pod）；阶段二代理之间另建 HBONE 长连接（mTLS 带身份、CONNECT 带目的地）；阶段三应用与网关冒充的「假目标」完成会话①、Envoy 同时与真上游建会话②；阶段四 Envoy 把 Pod→网关段的五层封装剥到明文、经 ext_proc 问 EPE、换掉凭证再以会话②发出；阶段五响应逆操作原路返回。应用视角里它始终在与 api.openai.com 直连，EPE 视角里它只收到问询、从不见字节流本体。</figcaption>
+      </figure>
+
       <p>这个例子也点出整套出站规则的匹配方式：<strong>规则定义、编译与执行是三拨不同的组件在接力</strong>——CR 是定义，agentiod 把 L4 那份编译成 IP 规则下发给 ztunnel、EPE 自己编译 L7 那份，执行则落在 ztunnel（连接级）与 Envoy + EPE（请求级）两处。任何一级的规则没配对，流量就在那一级停下，且停下的位置本身就说明了它死在哪类规则上。</p>
 
       <h3 class="sub">DNS：主动解析，不是拦截学习</h3>
