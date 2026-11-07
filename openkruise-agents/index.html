@@ -398,7 +398,7 @@
             <tr><td>agentiod</td><td>独立 Deployment（agentio 仓构建）</td><td>出站控制面：增量 KRT 编译 TrafficPolicy、自研 xDS（仅 Delta 推送，15012）、内置 CA 签发 SPIFFE SVID、FQDN 主动解析后展开为 IP 下发；policystatus 回写策略的 Programmed 资格</td></tr>
             <tr><td>proxy-init</td><td>Pod 内 init 容器（镜像按 digest 引用，不在任何仓构建）</td><td>跑 Istio 的 istio-iptables 写 REDIRECT 规则把出站流量抓进边车：<code>-p 15001</code>、<code>-z 15006</code>、<code>-u 1337</code>，排除 15090 / 15021 / 15020</td></tr>
             <tr><td>ztunnel</td><td>Pod 内边车（沙箱模式）；节点 ambient 模式为每节点 DaemonSet（Alpha）</td><td>L4 执行体（ztunnel 仓，Rust 补丁版）：按 agentiod 下发的 TrafficPolicy 与 Authorization 在本地判定 peer、协议与端口；沙箱侧 DNS 流量由其 DNS capture 处理</td></tr>
-            <tr><td>agentio-epe（EPE）</td><td>随 traffic-proxy 注入的 L7 执行体（agentio 仓构建）</td><td>自 watch 并编译 SecurityProfile，逐请求执行写死顺序的 filter 链（bypass → block → mcpacl → headermutation → httpcallout → tokentransform → oauth2）：工具策略、正文检查、凭证占位符替换点与 audit；真实凭证由外部 provider 服务解析</td></tr>
+            <tr><td>agentio-epe（EPE）</td><td>出口网关侧 Envoy 的 ext_proc 外挂执行体（agentio 仓构建）</td><td>Egress Policy Enforcer：自 watch 并编译 SecurityProfile，逐请求执行写死顺序的 filter 链（bypass → block → mcpacl → headermutation → httpcallout → tokentransform → oauth2）：工具策略、正文检查、凭证占位符替换点与 audit；自己不接流量、不保管凭证，真实凭证由外部 provider 服务解析</td></tr>
             <tr><td>agentio-gateway</td><td>独立网关（官方 Envoy v1.40.2 + 自研 gateway-agent + 3 个 Rust 原生扩展）</td><td>出口网关，已取代 proxyv2；网关侧连接处理器 agentio-porter（Rust）解析 HBONE CONNECT 的来源 Workload 与 SNI 策略</td></tr>
             <tr><td>okactl</td><td>本地 CLI（直连 K8s API，不经 manager）</td><td>五条运维命令：scale sandboxset、set image、create suo、restart sandbox、status</td></tr>
           </tbody>
@@ -785,6 +785,85 @@
         <button class="btn primary" id="egressNext" type="button">下一步 →</button>
       </div>
 
+      <h3 class="sub">出站流量图</h3>
+      <figure class="fig">
+        <svg viewBox="0 0 920 486" role="img" aria-label="出站流量图：抓包改道、ztunnel L4 判定、HBONE 送出口网关、EPE L7 判定、三路分流出口与 agentiod 控制面旁路">
+          <defs>
+            <marker id="ahO" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--egress)"/></marker>
+            <marker id="ahO2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--ink3)"/></marker>
+          </defs>
+          <style>.svg-arrowO{stroke:var(--egress); stroke-width:1.7; fill:none; marker-end:url(#ahO)} .svg-arrowO2{stroke:var(--ink3); stroke-width:1.3; fill:none; stroke-dasharray:4 3; marker-end:url(#ahO2)}</style>
+          <!-- control plane -->
+          <rect class="svg-box" x="170" y="22" width="580" height="72" rx="8"/>
+          <text class="svg-t" x="460" y="46" text-anchor="middle" style="font-size:12px">agentiod · 控制面（不在数据路径上）</text>
+          <text class="svg-s" x="460" y="65" text-anchor="middle">虚线下发：TrafficPolicy 编译产物 · FQDN 主动解析结果 · SPIFFE 身份与 MITM CA 证书</text>
+          <text class="svg-m" x="460" y="83" text-anchor="middle">例外：EPE 不经 xDS，自己 watch SecurityProfile CR 编译</text>
+          <path class="svg-arrowO2" d="M330 94 V150"/>
+          <path class="svg-arrowO2" d="M620 94 V150"/>
+          <!-- main lane -->
+          <rect class="svg-box" x="12" y="152" width="118" height="104" rx="8"/>
+          <text class="svg-t" x="71" y="180" text-anchor="middle" style="font-size:12px">业务容器</text>
+          <text class="svg-s" x="71" y="200" text-anchor="middle">正常发起连接</text>
+          <text class="svg-s" x="71" y="218" text-anchor="middle">以为自己在直连</text>
+          <text class="svg-m" x="71" y="238" text-anchor="middle">如 api:443</text>
+          <rect class="svg-box-eg" x="148" y="152" width="140" height="104" rx="8"/>
+          <text class="svg-t" x="218" y="178" text-anchor="middle" style="font-size:12px">1 · 抓包改道</text>
+          <text class="svg-s" x="218" y="198" text-anchor="middle">proxy-init 预写规则</text>
+          <text class="svg-s" x="218" y="216" text-anchor="middle">OUTPUT 链 REDIRECT</text>
+          <text class="svg-m" x="218" y="236" text-anchor="middle">改投 ztunnel :15006</text>
+          <rect class="svg-box-eg" x="306" y="152" width="140" height="104" rx="8"/>
+          <text class="svg-t" x="376" y="178" text-anchor="middle" style="font-size:12px">2 · ztunnel L4 判定</text>
+          <text class="svg-s" x="376" y="198" text-anchor="middle">读原始目的地</text>
+          <text class="svg-m" x="376" y="216" text-anchor="middle">SO_ORIGINAL_DST</text>
+          <text class="svg-s" x="376" y="236" text-anchor="middle">按 TrafficPolicy 判定</text>
+          <rect class="svg-box-eg" x="464" y="152" width="150" height="104" rx="8"/>
+          <text class="svg-t" x="539" y="178" text-anchor="middle" style="font-size:12px">3 · HBONE 送网关</text>
+          <text class="svg-s" x="539" y="198" text-anchor="middle">需 L7 治理的连接</text>
+          <text class="svg-s" x="539" y="216" text-anchor="middle">HTTP/2 CONNECT 隧道</text>
+          <text class="svg-m" x="539" y="236" text-anchor="middle">porter 解析来源与 SNI</text>
+          <rect class="svg-box-eg" x="632" y="152" width="140" height="104" rx="8"/>
+          <text class="svg-t" x="702" y="178" text-anchor="middle" style="font-size:12px">4 · EPE L7 判定</text>
+          <text class="svg-s" x="702" y="198" text-anchor="middle">网关 Envoy 经</text>
+          <text class="svg-s" x="702" y="216" text-anchor="middle">ext_proc 逐请求问询</text>
+          <text class="svg-m" x="702" y="236" text-anchor="middle">放行 / 拦截 / 换凭证</text>
+          <rect class="svg-box" x="790" y="152" width="118" height="104" rx="8"/>
+          <text class="svg-t" x="849" y="180" text-anchor="middle" style="font-size:12px">外部服务</text>
+          <text class="svg-s" x="849" y="200" text-anchor="middle">5 · 放行后送达</text>
+          <text class="svg-s" x="849" y="218" text-anchor="middle">目标 API / Web</text>
+          <text class="svg-m" x="849" y="238" text-anchor="middle">真实凭证已替换</text>
+          <path class="svg-arrowO" d="M130 204 H148"/>
+          <path class="svg-arrowO" d="M288 204 H306"/>
+          <path class="svg-arrowO" d="M446 204 H464"/>
+          <path class="svg-arrowO" d="M614 204 H632"/>
+          <path class="svg-arrowO" d="M772 204 H790"/>
+          <!-- branch exits -->
+          <path class="svg-arrowO2" d="M352 256 V306 H180 V330"/>
+          <path class="svg-arrowO2" d="M400 256 V306 H440 V330"/>
+          <path class="svg-arrowO2" d="M702 256 V330"/>
+          <rect class="svg-box-warn" x="55" y="334" width="250" height="70" rx="8"/>
+          <text class="svg-t" x="180" y="360" text-anchor="middle" style="font-size:12px">L4 拒绝 → 就地丢弃</text>
+          <text class="svg-s" x="180" y="379" text-anchor="middle">在沙箱 Pod 内终止，到不了网关</text>
+          <rect class="svg-box-warn" x="315" y="334" width="250" height="70" rx="8"/>
+          <text class="svg-t" x="440" y="360" text-anchor="middle" style="font-size:12px">直通 PASSTHROUGH → 不进网关</text>
+          <text class="svg-s" x="440" y="379" text-anchor="middle">ztunnel 原生转发，直达目标地址</text>
+          <rect class="svg-box-warn" x="575" y="334" width="290" height="70" rx="8"/>
+          <text class="svg-t" x="720" y="360" text-anchor="middle" style="font-size:12px">EPE 判定 block → 网关终止</text>
+          <text class="svg-s" x="720" y="379" text-anchor="middle">Envoy 按裁决拦截，不达外部服务</text>
+          <text class="svg-m" x="460" y="434" text-anchor="middle">入站方向对称：进 Pod 的包在 PREROUTING 链被 REDIRECT 到 15001，先过 ztunnel 再转给业务容器</text>
+          <text class="svg-m" x="460" y="456" text-anchor="middle">HBONE = 基于 HTTP/2 CONNECT 的覆盖网络封装：隧道跑 mTLS，调用方身份（SPIFFE ID）随客户端证书走，对端解开隧道即知来源</text>
+        </svg>
+        <figcaption>出站主线五步：抓包改道 → ztunnel L4 判定 → HBONE 送出口网关 → EPE 的 L7 判定与凭证替换 → 外部服务。主线之外有三个分流出口：L4 拒绝在 Pod 内就地丢弃、直通流量不进网关、EPE 拦截在网关终止。agentiod 只在旁路下发策略、解析结果与证书，不在数据路径上。</figcaption>
+      </figure>
+
+      <h3 class="sub">proxy-init 抓包改道：关卡怎么设、流量怎么拐</h3>
+      <p>这里的「抓包」不是抓下来看的抓包，而是<strong>拦截改道</strong>：流量不复制、不留存，只是在半路上被强制拐了个弯。分工是 <strong>proxy-init 负责写规则，ztunnel 负责站岗</strong>——业务容器全程无感、无需任何配合，这就是这套代理叫「透明」的原因。</p>
+      <ul>
+        <li><strong>写规则的一次性 init 容器</strong>：proxy-init 是沙箱 Pod 里的 init 容器，在业务容器启动之前先运行、干完活就退出；它执行的程序是 Istio 的 <code>istio-iptables</code>，任务只有一个——往这个 Pod 的网络命名空间里写一批 iptables 规则。写规则需要 NET_ADMIN 权限，所以让这个一次性的 init 容器拿权限，业务容器不用拿。</li>
+        <li><strong>改道怎么发生</strong>：业务容器正常发起出站连接（如连 <code>api.openai.com:443</code>），它以为自己在直连；数据包刚出容器、走到内核 netfilter 的 OUTPUT 链时，撞上预先写好的 REDIRECT 规则，目的地被改写为本机的 15006 端口（ztunnel 的出站口）。ztunnel 从连接的原始目的地信息（<code>SO_ORIGINAL_DST</code>）里读出「它本来要去哪」，查 TrafficPolicy 做 L4 判定，再决定直通转发、走 HBONE 去网关、还是就地拒绝。规则写在 Pod 共享的网络命名空间里，对 Pod 内所有容器统一生效。</li>
+        <li><strong>防自噬的三个细节</strong>：ztunnel 以固定 UID 1337 运行，规则带 owner 匹配，<strong>ztunnel 自己发出的流量不再被抓</strong>，否则它转发出去的包会再次被拐回来、无限循环；15090、15021、15020 写在排除名单里（代理自身的运维、监控与探针端口），保证 K8s 健康探针能按改写后的路径工作、代理的管理口不被自己拦截。</li>
+        <li><strong>这道关卡的软肋</strong>：规则本质上是 Pod 内的 iptables，业务容器若拿到 privileged 或 NET_ADMIN，就能自己改规则把关卡拆掉——它防的是普通工作负载，防篡改强度取决于部署方有没有收紧 Pod 的权限（与隔离边界一节的结论一致）。</li>
+      </ul>
+
       <h3 class="sub">Pod 组网基线</h3>
       <p>项目不实现 CNI、IPAM 或独立 netns 分配：Pod 由集群 CNI 分配 Pod IP，控制器只读 <code>PodStatus.PodIP</code> 同步进 Sandbox 状态。沙箱间默认互访<strong>没有项目级默认拒绝</strong>：项目不下发默认 NetworkPolicy（没有默认 NetworkPolicy 模板），互通与否取决于集群 CNI 与用户自加的策略。</p>
 
@@ -800,6 +879,7 @@
       </ul>
 
       <h3 class="sub">L7（SecurityProfile）：契约在 agents 仓，执行在 agentio 仓的 EPE</h3>
+      <p><strong>EPE 是 Egress Policy Enforcer（出口策略执行器）</strong>，代码在 agentio 仓的 <code>extensions/epe</code>——出站流量里所有「看内容做决定」的活都归它。它自己不接流量，是出口网关里 Envoy 的一个外挂裁判：Envoy 每收到一个经 HBONE 送来的请求，就通过 ext_proc 协议把请求（头、路径、方法，必要时还有 body）发给 EPE 问一句「放不放、要不要改」，EPE 给出裁决、Envoy 照着执行；调用方身份 Envoy 已经从 HBONE 隧道证书里解出来，随 ext_proc 一起带给它。它干四类事：按域名、路径、方法、header 做 L7 版黑白名单（bypass / block）；专管 MCP 协议流量、细到只准某个 agent 调某个 MCP server 的某几个工具（mcpacl）；改写请求头并做凭证替换——把请求里的占位符 <code>${AGENTIO_TOKEN}</code> 换成真实 API Key，让沙箱永远接触不到真密钥（headermutation / tokentransform）；以及拿不准时同步外呼外部决策服务、流结束后异步投递审计（httpcallout / audit）。它的两个边界最容易被误解：<strong>它不保管凭证</strong>——只做「替换」这个动作，真实密钥的值由它把 provider 名字透传给外部 provider 服务解析，那个服务不在开源里；<strong>它对身份缺失默认放行</strong>——请求没有可识别的调用方身份就没有 SecurityProfile 能命中，默认放行（另有独立的目的地授权器与 fail-closed 开关，见下）。</p>
       <ul>
         <li>类型契约完整：域名（必填）、路径（Prefix / Exact / RE2）、方法、端口、scheme、header、queryParam 匹配；多 Profile 按 priority <strong>合并</strong>而非首命中；动作固定序 bypass → block → mcpToolPolicy → headerManipulation → tokenTransformation → audit。</li>
         <li><strong>EPE 自己 watch 并编译 SecurityProfile CRD</strong>，不经 xDS 下发（xDS 只为它提供 TrafficPolicy 上下文）。生产 filter 链顺序写死为 <code>bypass → block → mcpacl → headermutation → httpcallout → tokentransform → oauth2</code>，其中 oauth2 是 0.3.0 世代新增的一环。</li>
