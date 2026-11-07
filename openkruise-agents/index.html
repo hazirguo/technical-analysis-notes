@@ -276,10 +276,10 @@
     <!-- ============ 架构 ============ -->
     <section id="arch">
       <div class="sec-head"><span class="sec-num">02</span><h2>整体架构与组件形态</h2></div>
-      <p class="sec-lede">控制面是两个独立 Deployment；入站数据面网关不是独立进程，而是编成 c-shared .so 与 Envoy 同进程运行，controller、waker、peer server 都寄生在网关进程内。沙箱的出站流量不经这个网关：它在 Pod 内被 traffic-proxy 抓包，先过 ztunnel 的 L4 判定、再过 EPE 的 L7 判定，最后经出口网关 agentio-gateway 离开集群，策略与身份由 agentiod 在旁路编译下发——下图上半画入站，下半画出站。</p>
+      <p class="sec-lede">控制面是两个独立 Deployment；入站数据面网关不是独立进程，而是编成 c-shared .so 与 Envoy 同进程运行，controller、waker、peer server 都寄生在网关进程内。沙箱的出站流量不经这个网关：它在 Pod 内被 traffic-proxy 抓包，先过 ztunnel 的 L4 判定，再经 HBONE 隧道送到出口网关 agentio-gateway；L7 判定不在主线上——EPE 旁挂在网关侧面，Envoy 逐请求经 ext_proc 问询、按裁决执行，字节流只过 Envoy。策略与身份由 agentiod 在旁路编译下发——下图上半画入站，下半画出站。</p>
 
       <figure class="fig">
-        <svg viewBox="0 0 920 782" role="img" aria-label="OpenKruise Agents 架构图（含沙箱出站链路）">
+        <svg viewBox="0 0 920 830" role="img" aria-label="OpenKruise Agents 架构图（含沙箱出站链路，EPE 旁挂于出口网关）">
           <defs>
             <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--accent)"/></marker>
             <marker id="ah2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--ink3)"/></marker>
@@ -309,7 +309,7 @@
           <text class="svg-s" x="798" y="214" text-anchor="middle">上游 envd :49983</text>
           <rect class="svg-box-warn" x="540" y="250" width="340" height="58" rx="6"/>
           <text class="svg-t" x="710" y="272" text-anchor="middle" style="font-size:12px">traffic-proxy（可选注入，模板来自部署侧 ConfigMap）</text>
-          <text class="svg-s" x="710" y="290" text-anchor="middle">ztunnel 边车 + EPE 在此注入 · 出站流量由此抓包（见下方链路）</text>
+          <text class="svg-s" x="710" y="290" text-anchor="middle">ztunnel 边车在此注入（EPE 不在 Pod 内）· 出站流量由此抓包（见下方链路）</text>
           <!-- manager -->
           <rect class="svg-box" x="205" y="356" width="230" height="92" rx="8"/>
           <text class="svg-t" x="320" y="382" text-anchor="middle">sandbox-manager</text>
@@ -338,50 +338,51 @@
           <path class="svg-arrow2" d="M766 402 H750"/>
           <path class="svg-arrow2" d="M520 402 H435"/>
           <!-- egress lane: sandbox outbound via Agentio stack -->
-          <rect class="svg-lane" x="20" y="478" width="880" height="282" rx="10"/>
+          <rect class="svg-lane" x="20" y="478" width="880" height="330" rx="10"/>
           <text class="svg-t-eg" x="40" y="508">沙箱出站链路 · Agentio 栈（traffic-proxy 开启时）</text>
-          <text class="svg-m-eg" x="880" y="508" text-anchor="end">实线 = 出站数据面 · 虚线 = 策略 / 身份下发</text>
+          <text class="svg-m-eg" x="880" y="508" text-anchor="end">实线 = 出站数据面 · 虚线 = 策略 / 身份下发与 ext_proc 问询</text>
           <rect class="svg-box-eg" x="545" y="522" width="335" height="68" rx="8"/>
           <text class="svg-t" x="712" y="547" text-anchor="middle">agentiod · 出站控制面</text>
           <text class="svg-s" x="712" y="567" text-anchor="middle">KRT 编译 TrafficPolicy · Delta xDS :15012</text>
           <text class="svg-s" x="712" y="585" text-anchor="middle">内置 CA 签 SPIFFE SVID · FQDN 主动解析展开 IP</text>
-          <path class="svg-arrow2" d="M620 590 C 620 612, 420 606, 300 616"/>
-          <path class="svg-arrow2" d="M712 590 V616"/>
-          <path class="svg-arrow2" d="M800 590 C 800 612, 700 606, 645 616"/>
-          <rect class="svg-box" x="30" y="618" width="162" height="92" rx="8"/>
-          <text class="svg-t" x="111" y="642" text-anchor="middle" style="font-size:12px">沙箱业务容器</text>
-          <text class="svg-s" x="111" y="661" text-anchor="middle">出站连接被抓包改道</text>
-          <text class="svg-s" x="111" y="679" text-anchor="middle">proxy-init 写 REDIRECT</text>
-          <text class="svg-m" x="111" y="697" text-anchor="middle">istio-iptables · -u 1337</text>
-          <rect class="svg-box-eg" x="202" y="618" width="162" height="92" rx="8"/>
-          <text class="svg-t" x="283" y="642" text-anchor="middle" style="font-size:12px">ztunnel 边车 · L4</text>
-          <text class="svg-s" x="283" y="661" text-anchor="middle">TrafficPolicy 本地判定</text>
-          <text class="svg-s" x="283" y="679" text-anchor="middle">peer · 协议 · 端口</text>
-          <text class="svg-m" x="283" y="697" text-anchor="middle">入 15001 · 出 15006</text>
-          <rect class="svg-box-eg" x="374" y="618" width="162" height="92" rx="8"/>
-          <text class="svg-t" x="455" y="642" text-anchor="middle" style="font-size:12px">EPE · L7</text>
-          <text class="svg-s" x="455" y="661" text-anchor="middle">按 SecurityProfile 判定</text>
-          <text class="svg-s" x="455" y="679" text-anchor="middle">工具策略 · 正文检查</text>
-          <text class="svg-m" x="455" y="697" text-anchor="middle">凭证替换 · audit 异步</text>
-          <rect class="svg-box-eg" x="546" y="618" width="162" height="92" rx="8"/>
-          <text class="svg-t" x="627" y="642" text-anchor="middle" style="font-size:12px">agentio-gateway</text>
-          <text class="svg-s" x="627" y="661" text-anchor="middle">出口网关 · Envoy v1.40.2</text>
-          <text class="svg-s" x="627" y="679" text-anchor="middle">自研 agent + Rust 扩展</text>
-          <text class="svg-m" x="627" y="697" text-anchor="middle">porter 处理 HBONE / SNI</text>
-          <rect class="svg-box" x="718" y="618" width="162" height="92" rx="8"/>
-          <text class="svg-t" x="799" y="642" text-anchor="middle" style="font-size:12px">外部服务 / 互联网</text>
-          <text class="svg-s" x="799" y="661" text-anchor="middle">目标 API · 模型服务</text>
-          <text class="svg-s" x="799" y="679" text-anchor="middle">Web · 第三方接口</text>
-          <text class="svg-m" x="799" y="697" text-anchor="middle">放行后直达目标地址</text>
-          <path class="svg-arrow-eg" d="M192 664 H202"/>
-          <path class="svg-arrow-eg" d="M364 664 H374"/>
-          <path class="svg-arrow-eg" d="M536 664 H546"/>
-          <path class="svg-arrow-eg" d="M708 664 H718"/>
-          <text class="svg-s" x="460" y="736" text-anchor="middle">EPE 只透传 provider 名，真实凭证由外部 provider 服务（部署方自备）解析 · TLS 检查的叶证书由 agentiod 的 MITM CA 签发（15 分钟）</text>
-          <path class="svg-arrow-eg" d="M600 308 C 600 338, 520 344, 492 378 V520 C 492 575, 300 600, 116 614"/>
+          <path class="svg-arrow2" d="M620 590 C 620 612, 420 606, 330 614"/>
+          <path class="svg-arrow2" d="M712 590 C 712 606, 580 606, 545 614"/>
+          <rect class="svg-box" x="30" y="618" width="180" height="92" rx="8"/>
+          <text class="svg-t" x="120" y="642" text-anchor="middle" style="font-size:12px">沙箱业务容器</text>
+          <text class="svg-s" x="120" y="661" text-anchor="middle">出站连接被抓包改道</text>
+          <text class="svg-s" x="120" y="679" text-anchor="middle">proxy-init 写 REDIRECT</text>
+          <text class="svg-m" x="120" y="697" text-anchor="middle">istio-iptables · -u 1337</text>
+          <rect class="svg-box-eg" x="230" y="618" width="180" height="92" rx="8"/>
+          <text class="svg-t" x="320" y="642" text-anchor="middle" style="font-size:12px">ztunnel 边车 · L4</text>
+          <text class="svg-s" x="320" y="661" text-anchor="middle">TrafficPolicy 本地判定</text>
+          <text class="svg-s" x="320" y="679" text-anchor="middle">peer · 协议 · 端口</text>
+          <text class="svg-m" x="320" y="697" text-anchor="middle">入 15001 · 出 15006</text>
+          <rect class="svg-box-eg" x="430" y="618" width="200" height="92" rx="8"/>
+          <text class="svg-t" x="530" y="642" text-anchor="middle" style="font-size:12px">agentio-gateway</text>
+          <text class="svg-s" x="530" y="661" text-anchor="middle">出口网关 · Envoy v1.40.2</text>
+          <text class="svg-s" x="530" y="679" text-anchor="middle">porter 处理 HBONE / SNI</text>
+          <text class="svg-m" x="530" y="697" text-anchor="middle">自研 agent + Rust 扩展</text>
+          <rect class="svg-box" x="650" y="618" width="230" height="92" rx="8"/>
+          <text class="svg-t" x="765" y="642" text-anchor="middle" style="font-size:12px">外部服务 / 互联网</text>
+          <text class="svg-s" x="765" y="661" text-anchor="middle">目标 API · 模型服务</text>
+          <text class="svg-s" x="765" y="679" text-anchor="middle">Web · 第三方接口</text>
+          <text class="svg-m" x="765" y="697" text-anchor="middle">放行后直达目标地址</text>
+          <path class="svg-arrow-eg" d="M210 664 H230"/>
+          <path class="svg-arrow-eg" d="M410 664 H430"/>
+          <path class="svg-arrow-eg" d="M630 664 H650"/>
+          <path class="svg-arrow2" d="M530 712 V726" marker-start="url(#ah2)"/>
+          <text class="svg-m" x="540" y="723">ext_proc</text>
+          <rect class="svg-box-eg" x="430" y="728" width="200" height="74" rx="8"/>
+          <text class="svg-t" x="530" y="752" text-anchor="middle" style="font-size:12px">EPE · L7（旁挂）</text>
+          <text class="svg-s" x="530" y="771" text-anchor="middle">Envoy 逐请求问询 · 回裁决执行</text>
+          <text class="svg-s" x="530" y="789" text-anchor="middle">字节流不穿 EPE · 自 watch CR</text>
+          <text class="svg-s" x="220" y="750" text-anchor="middle">EPE 只透传 provider 名，真实凭证由外部</text>
+          <text class="svg-s" x="220" y="769" text-anchor="middle">provider 服务（部署方自备）解析</text>
+          <text class="svg-s" x="220" y="788" text-anchor="middle">TLS 叶证书由 agentiod 的 MITM CA 签发（15 分钟）</text>
+          <path class="svg-arrow-eg" d="M600 308 C 600 338, 520 344, 492 378 V520 C 492 575, 300 600, 120 614"/>
           <text class="svg-m-eg" x="484" y="432" text-anchor="end">出站流量</text>
         </svg>
-        <figcaption>上：入站与控制面——网关转发不经 K8s Service、不做 DNS，后端地址来自进程内路由表。下：沙箱出站——业务流量在 Pod 内被 proxy-init 抓包，经 ztunnel（L4）与 EPE（L7）两级判定后由 agentio-gateway 送往外部，agentiod 以虚线下发策略、身份与解析结果。</figcaption>
+        <figcaption>上：入站与控制面——网关转发不经 K8s Service、不做 DNS，后端地址来自进程内路由表。下：沙箱出站——业务流量在 Pod 内被 proxy-init 抓包，经 ztunnel（L4）判定后由 HBONE 送到 agentio-gateway 直达外部；EPE 不串在主线上，而是旁挂在网关下方、经 ext_proc 被逐请求问询。agentiod 以虚线下发策略、身份与解析结果。</figcaption>
       </figure>
 
       <div class="tbl-wrap">
@@ -787,7 +788,7 @@
 
       <h3 class="sub">出站流量图</h3>
       <figure class="fig">
-        <svg viewBox="0 0 920 486" role="img" aria-label="出站流量图：抓包改道、ztunnel L4 判定、HBONE 送出口网关、EPE L7 判定、三路分流出口与 agentiod 控制面旁路">
+        <svg viewBox="0 0 920 548" role="img" aria-label="出站流量图：抓包改道、ztunnel L4 判定、HBONE 送出口网关、EPE 旁挂 ext_proc、三路分流出口与 agentiod 控制面旁路">
           <defs>
             <marker id="ahO" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--egress)"/></marker>
             <marker id="ahO2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--ink3)"/></marker>
@@ -816,43 +817,43 @@
           <text class="svg-s" x="376" y="198" text-anchor="middle">读原始目的地</text>
           <text class="svg-m" x="376" y="216" text-anchor="middle">SO_ORIGINAL_DST</text>
           <text class="svg-s" x="376" y="236" text-anchor="middle">按 TrafficPolicy 判定</text>
-          <rect class="svg-box-eg" x="464" y="152" width="150" height="104" rx="8"/>
-          <text class="svg-t" x="539" y="178" text-anchor="middle" style="font-size:12px">3 · HBONE 送网关</text>
-          <text class="svg-s" x="539" y="198" text-anchor="middle">需 L7 治理的连接</text>
-          <text class="svg-s" x="539" y="216" text-anchor="middle">HTTP/2 CONNECT 隧道</text>
-          <text class="svg-m" x="539" y="236" text-anchor="middle">porter 解析来源与 SNI</text>
-          <rect class="svg-box-eg" x="632" y="152" width="140" height="104" rx="8"/>
-          <text class="svg-t" x="702" y="178" text-anchor="middle" style="font-size:12px">4 · EPE L7 判定</text>
-          <text class="svg-s" x="702" y="198" text-anchor="middle">网关 Envoy 经</text>
-          <text class="svg-s" x="702" y="216" text-anchor="middle">ext_proc 逐请求问询</text>
-          <text class="svg-m" x="702" y="236" text-anchor="middle">放行 / 拦截 / 换凭证</text>
-          <rect class="svg-box" x="790" y="152" width="118" height="104" rx="8"/>
-          <text class="svg-t" x="849" y="180" text-anchor="middle" style="font-size:12px">外部服务</text>
-          <text class="svg-s" x="849" y="200" text-anchor="middle">5 · 放行后送达</text>
-          <text class="svg-s" x="849" y="218" text-anchor="middle">目标 API / Web</text>
-          <text class="svg-m" x="849" y="238" text-anchor="middle">真实凭证已替换</text>
+          <rect class="svg-box-eg" x="464" y="152" width="236" height="104" rx="8"/>
+          <text class="svg-t" x="582" y="178" text-anchor="middle" style="font-size:12px">3 · 出口网关 agentio-gateway</text>
+          <text class="svg-s" x="582" y="198" text-anchor="middle">HBONE 隧道送达 · Envoy 终结连接</text>
+          <text class="svg-s" x="582" y="216" text-anchor="middle">porter 解析来源 Workload 与 SNI</text>
+          <text class="svg-m" x="582" y="236" text-anchor="middle">Envoy 按裁决选路转发</text>
+          <rect class="svg-box" x="718" y="152" width="190" height="104" rx="8"/>
+          <text class="svg-t" x="813" y="180" text-anchor="middle" style="font-size:12px">外部服务</text>
+          <text class="svg-s" x="813" y="200" text-anchor="middle">4 · 放行后送达</text>
+          <text class="svg-s" x="813" y="218" text-anchor="middle">目标 API / Web</text>
+          <text class="svg-m" x="813" y="238" text-anchor="middle">真实凭证已替换</text>
           <path class="svg-arrowO" d="M130 204 H148"/>
           <path class="svg-arrowO" d="M288 204 H306"/>
           <path class="svg-arrowO" d="M446 204 H464"/>
-          <path class="svg-arrowO" d="M614 204 H632"/>
-          <path class="svg-arrowO" d="M772 204 H790"/>
+          <path class="svg-arrowO" d="M700 204 H718"/>
+          <path class="svg-arrowO2" d="M582 258 V286" marker-start="url(#ahO2)"/>
+          <text class="svg-m" x="592" y="276">ext_proc 逐请求问询 · 回裁决</text>
+          <rect class="svg-box-eg" x="464" y="288" width="236" height="82" rx="8"/>
+          <text class="svg-t" x="582" y="314" text-anchor="middle" style="font-size:12px">EPE · L7 判定（旁挂，不在主线）</text>
+          <text class="svg-s" x="582" y="333" text-anchor="middle">只收请求元数据问询 · 字节流不穿 EPE</text>
+          <text class="svg-s" x="582" y="351" text-anchor="middle">filter 链裁决：放行 / 拦截 / 换凭证</text>
           <!-- branch exits -->
-          <path class="svg-arrowO2" d="M352 256 V306 H180 V330"/>
-          <path class="svg-arrowO2" d="M400 256 V306 H440 V330"/>
-          <path class="svg-arrowO2" d="M702 256 V330"/>
-          <rect class="svg-box-warn" x="55" y="334" width="250" height="70" rx="8"/>
-          <text class="svg-t" x="180" y="360" text-anchor="middle" style="font-size:12px">L4 拒绝 → 就地丢弃</text>
-          <text class="svg-s" x="180" y="379" text-anchor="middle">在沙箱 Pod 内终止，到不了网关</text>
-          <rect class="svg-box-warn" x="315" y="334" width="250" height="70" rx="8"/>
-          <text class="svg-t" x="440" y="360" text-anchor="middle" style="font-size:12px">直通 PASSTHROUGH → 不进网关</text>
-          <text class="svg-s" x="440" y="379" text-anchor="middle">ztunnel 原生转发，直达目标地址</text>
-          <rect class="svg-box-warn" x="575" y="334" width="290" height="70" rx="8"/>
-          <text class="svg-t" x="720" y="360" text-anchor="middle" style="font-size:12px">EPE 判定 block → 网关终止</text>
-          <text class="svg-s" x="720" y="379" text-anchor="middle">Envoy 按裁决拦截，不达外部服务</text>
-          <text class="svg-m" x="460" y="434" text-anchor="middle">入站方向对称：进 Pod 的包在 PREROUTING 链被 REDIRECT 到 15001，先过 ztunnel 再转给业务容器</text>
-          <text class="svg-m" x="460" y="456" text-anchor="middle">HBONE = 基于 HTTP/2 CONNECT 的覆盖网络封装：隧道跑 mTLS，调用方身份（SPIFFE ID）随客户端证书走，对端解开隧道即知来源</text>
+          <path class="svg-arrowO2" d="M352 256 V340 H180 V400"/>
+          <path class="svg-arrowO2" d="M400 256 V340 H440 V400"/>
+          <path class="svg-arrowO2" d="M582 370 V386 H720 V400"/>
+          <rect class="svg-box-warn" x="55" y="404" width="250" height="70" rx="8"/>
+          <text class="svg-t" x="180" y="430" text-anchor="middle" style="font-size:12px">L4 拒绝 → 就地丢弃</text>
+          <text class="svg-s" x="180" y="449" text-anchor="middle">在沙箱 Pod 内终止，到不了网关</text>
+          <rect class="svg-box-warn" x="315" y="404" width="250" height="70" rx="8"/>
+          <text class="svg-t" x="440" y="430" text-anchor="middle" style="font-size:12px">直通 PASSTHROUGH → 不进网关</text>
+          <text class="svg-s" x="440" y="449" text-anchor="middle">ztunnel 原生转发，直达目标地址</text>
+          <rect class="svg-box-warn" x="575" y="404" width="290" height="70" rx="8"/>
+          <text class="svg-t" x="720" y="430" text-anchor="middle" style="font-size:12px">EPE 判定 block → 网关终止</text>
+          <text class="svg-s" x="720" y="449" text-anchor="middle">Envoy 按裁决拦截，不达外部服务</text>
+          <text class="svg-m" x="460" y="502" text-anchor="middle">入站方向对称：进 Pod 的包在 PREROUTING 链被 REDIRECT 到 15001，先过 ztunnel 再转给业务容器</text>
+          <text class="svg-m" x="460" y="524" text-anchor="middle">HBONE = 基于 HTTP/2 CONNECT 的覆盖网络封装：隧道跑 mTLS，调用方身份（SPIFFE ID）随客户端证书走，对端解开隧道即知来源</text>
         </svg>
-        <figcaption>出站主线五步：抓包改道 → ztunnel L4 判定 → HBONE 送出口网关 → EPE 的 L7 判定与凭证替换 → 外部服务。主线之外有三个分流出口：L4 拒绝在 Pod 内就地丢弃、直通流量不进网关、EPE 拦截在网关终止。agentiod 只在旁路下发策略、解析结果与证书，不在数据路径上。</figcaption>
+        <figcaption>出站主线：抓包改道 → ztunnel L4 判定 → HBONE 送出口网关 → 外部服务。EPE 不串在主线上：它旁挂在网关下方，Envoy 逐请求经 ext_proc 把请求元数据发给它问询、按裁决（放行 / 拦截 / 换凭证）执行，字节流本体只过 Envoy、不穿 EPE。主线之外有三个分流出口：L4 拒绝在 Pod 内就地丢弃、直通流量不进网关、EPE 拦截在网关终止。agentiod 只在旁路下发策略、解析结果与证书，不在数据路径上。</figcaption>
       </figure>
 
       <h3 class="sub">proxy-init 抓包改道：关卡怎么设、流量怎么拐</h3>
