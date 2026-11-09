@@ -8,6 +8,7 @@
 
 | 日期 | 产物 | 说明 | 链接 |
 |---|---|---|---|
+| 2026-11-09 | CNI 可视化学习教程 | 面向 K8s 初学者的 13 章系统教程：从 Docker 网络之痛与 K8s 网络模型逐步引入，详解 CNI 规范 1.1.0、插件链与 IPAM、Overlay / BGP / 云 VPC 三种组网路线；Flannel、Calico、Cilium、Antrea、Kube-OVN、Multus 与云厂商 CNI 全景；含 Pod 接入、跨节点数据包旅程、NetworkPolicy、三问选型向导四组交互演示与自测；以 CNI 规范 1.1.0 为准 | [在线浏览](https://hazirguo.github.io/technical-analysis-notes/cni-learning/) · [源码目录](./cni-learning/) |
 | 2026-11-09 | Istio 可视化学习教程 | 面向 K8s 初学者的 9 章系统教程：从微服务痛点与 K8s 能力边界逐步引入，详解 istiod / Envoy / xDS、Sidecar 与 Ambient（ztunnel + Waypoint）双数据面、流量管理、安全 mTLS 与授权、可观测性；含请求旅程、金丝雀、熔断、mTLS 四组交互演示与自测；以 Istio 1.31 为准 | [在线浏览](https://hazirguo.github.io/technical-analysis-notes/istio-learning/) · [源码目录](./istio-learning/) |
 | 2026-11-04 | OpenKruise Agents 沙箱源码分析 | 基于源码 HEAD 20bbd53（710 个 Go 文件）逐项核实：Sandbox 本质是标准 Pod、17 个 CRD、预热池 Claim 与删 Pod 式 Pause、与 Envoy 同进程的 Go filter 入站网关与流量唤醒、出站由独立的 Agentio 栈实现（agentiod 策略编译与 DNS 主动解析、EPE 的 L7 执行、ztunnel 的 L4 执行，三仓记账）；含整体架构图与入站、出站双步进演示 | [在线浏览](https://hazirguo.github.io/technical-analysis-notes/openkruise-agents/) · [源码目录](./openkruise-agents/) |
 | 2026-10-28 | 近期模型安全失控案例汇总 | 21 条案例分三类：A 真实逃逸/越界 7 起（Anthropic 四模型逃逸核实与三点修正、OpenAI 入侵 Hugging Face、DNS 隧道等）、B 部署事故 3 起、C 受控评测 11 条；附 13 种 containment 失效模式对照与 10 条沙箱工程师清单；可按类别筛选与关键词搜索 | [在线浏览](https://hazirguo.github.io/technical-analysis-notes/model-safety-incidents/) · [源码目录](./model-safety-incidents/) |
