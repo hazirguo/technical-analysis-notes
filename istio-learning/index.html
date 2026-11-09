@@ -1,0 +1,1452 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="light dark" />
+    <link rel="icon" href="data:," />
+    <title>Istio 可视化学习教程</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet" />
+    <style>
+      :root{
+        --bg:#f4f6f9; --bg2:#eceff4; --surface:#ffffff; --surface2:#eef2f7;
+        --ink:#152233; --ink2:#3d4f66; --muted:#66788e; --line:#d7dfe9;
+        --accent:#2b5ea7; --accent-ink:#ffffff; --accent-soft:#e3ecf8;
+        --amber:#b97a1c; --amber-soft:#fdf1dc;
+        --ok:#1f8a57; --ok-soft:#e0f3e8;
+        --bad:#c93a3a; --bad-soft:#fbe7e7;
+        --code-bg:#0e1a2b; --code-ink:#d7e5f5; --code-dim:#7f96b3;
+        --pod:#2b5ea7; --sidecar:#e08a1e; --ctrl:#6a4fa3;
+        --shadow:0 1px 2px rgba(21,34,51,.06),0 8px 24px rgba(21,34,51,.06);
+        --radius:14px;
+      }
+      @media (prefers-color-scheme: dark){
+        :root{
+          --bg:#0b1220; --bg2:#0e1626; --surface:#131e30; --surface2:#182639;
+          --ink:#e8eff8; --ink2:#b9c9dc; --muted:#8498b1; --line:#263650;
+          --accent:#6ea8e8; --accent-ink:#0b1220; --accent-soft:#1b2f4e;
+          --amber:#e0a44a; --amber-soft:#33270f;
+          --ok:#4cc084; --ok-soft:#123324;
+          --bad:#f07a7a; --bad-soft:#3a1a1a;
+          --code-bg:#081120; --code-ink:#d7e5f5; --code-dim:#7f96b3;
+          --pod:#6ea8e8; --sidecar:#eda63f; --ctrl:#b79ae8;
+          --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.3);
+        }
+      }
+      *{ box-sizing:border-box; }
+      html{ scroll-behavior:smooth; }
+      body{
+        margin:0; background:var(--bg); color:var(--ink);
+        font-family:"Noto Sans SC",system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+        line-height:1.75; font-size:16px;
+        -webkit-font-smoothing:antialiased;
+      }
+      code,kbd,.mono{ font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace; }
+      a{ color:var(--accent); }
+
+      /* ---------- layout ---------- */
+      .layout{ display:flex; max-width:1280px; margin:0 auto; align-items:flex-start; }
+      .rail{
+        position:sticky; top:0; height:100vh; width:248px; flex:0 0 248px;
+        padding:28px 18px 28px 24px; overflow-y:auto; border-right:1px solid var(--line);
+      }
+      .rail .brand{ font-weight:900; font-size:19px; letter-spacing:.02em; line-height:1.35; }
+      .rail .brand small{ display:block; font-weight:500; font-size:12px; color:var(--muted); margin-top:4px; letter-spacing:.06em;}
+      .rail nav{ margin-top:22px; display:flex; flex-direction:column; gap:2px; }
+      .rail nav a{
+        color:var(--ink2); text-decoration:none; font-size:13.5px; padding:7px 10px;
+        border-radius:8px; display:flex; gap:9px; align-items:baseline; line-height:1.45;
+      }
+      .rail nav a .n{ font-family:"JetBrains Mono",monospace; font-size:11px; color:var(--muted); flex:0 0 18px; }
+      .rail nav a:hover{ background:var(--surface2); }
+      .rail nav a.active{ background:var(--accent-soft); color:var(--accent); font-weight:700; }
+      .rail nav a.active .n{ color:var(--accent); }
+      .rail .railnote{ margin-top:22px; font-size:12px; color:var(--muted); border-top:1px solid var(--line); padding-top:14px; line-height:1.7;}
+      main{ flex:1 1 auto; min-width:0; padding:0 40px 120px; }
+      .col{ max-width:820px; margin:0 auto; }
+
+      /* ---------- hero ---------- */
+      .hero{ padding:56px 0 8px; }
+      .hero .tagline{
+        display:inline-block; font-size:12.5px; font-weight:700; letter-spacing:.14em;
+        color:var(--accent); background:var(--accent-soft); padding:5px 12px; border-radius:999px;
+      }
+      .hero h1{ font-size:clamp(32px,5.2vw,50px); line-height:1.18; font-weight:900; margin:18px 0 14px; letter-spacing:.01em;}
+      .hero p.lead{ font-size:17.5px; color:var(--ink2); margin:0 0 8px; max-width:640px;}
+      .hero .meta{ display:flex; flex-wrap:wrap; gap:10px; margin-top:22px; }
+      .hero .meta span{
+        font-size:13px; color:var(--ink2); background:var(--surface); border:1px solid var(--line);
+        padding:6px 12px; border-radius:999px;
+      }
+      .hero .meta b{ color:var(--ink); }
+
+      /* ---------- chapter ---------- */
+      section.chapter{ padding-top:64px; }
+      .ch-head{ display:flex; gap:16px; align-items:flex-start; margin-bottom:6px; }
+      .ch-num{
+        font-family:"JetBrains Mono",monospace; font-weight:700; font-size:15px;
+        background:var(--ink); color:var(--bg); border-radius:10px; padding:8px 12px; line-height:1;
+        margin-top:6px; flex:0 0 auto;
+      }
+      .ch-head h2{ font-size:clamp(24px,3.4vw,32px); font-weight:900; margin:0; line-height:1.3; }
+      .ch-head .sub{ color:var(--muted); font-size:14.5px; margin-top:4px; }
+      h3{ font-size:19px; font-weight:800; margin:34px 0 10px; }
+      h4{ font-size:16px; font-weight:800; margin:24px 0 8px; }
+      p{ margin:10px 0; color:var(--ink2); }
+      p strong, li strong{ color:var(--ink); }
+      ul,ol{ color:var(--ink2); padding-left:22px; margin:10px 0; }
+      li{ margin:5px 0; }
+      .en{ font-family:"JetBrains Mono",monospace; font-size:.92em; }
+
+      .card{
+        background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
+        padding:20px 22px; margin:18px 0; box-shadow:var(--shadow);
+      }
+      .callout{ border-radius:var(--radius); padding:16px 20px; margin:18px 0; font-size:15px; }
+      .callout p{ margin:4px 0; }
+      .callout .ttl{ font-weight:800; margin-bottom:4px; font-size:14px; letter-spacing:.04em;}
+      .callout.key{ background:var(--accent-soft); }
+      .callout.key .ttl{ color:var(--accent); }
+      .callout.warn{ background:var(--amber-soft); }
+      .callout.warn .ttl{ color:var(--amber); }
+      .callout.good{ background:var(--ok-soft); }
+      .callout.good .ttl{ color:var(--ok); }
+      .callout.bad{ background:var(--bad-soft); }
+      .callout.bad .ttl{ color:var(--bad); }
+
+      /* ---------- code ---------- */
+      pre{
+        background:var(--code-bg); color:var(--code-ink); border-radius:12px;
+        padding:16px 18px; overflow-x:auto; font-size:13px; line-height:1.65; margin:16px 0;
+        font-family:"JetBrains Mono",ui-monospace,monospace;
+      }
+      pre .c{ color:var(--code-dim); }         /* comment */
+      pre .k{ color:#8ec5ff; }                  /* key */
+      pre .s{ color:#ffd479; }                  /* string/value */
+      :not(pre) > code{
+        background:var(--surface2); border:1px solid var(--line); border-radius:6px;
+        padding:1px 6px; font-size:.86em; color:var(--ink);
+      }
+
+      /* ---------- tables ---------- */
+      .tblwrap{ overflow-x:auto; margin:16px 0; border:1px solid var(--line); border-radius:var(--radius); background:var(--surface);}
+      table{ border-collapse:collapse; width:100%; font-size:14px; min-width:520px; }
+      th{ text-align:left; padding:11px 14px; background:var(--surface2); font-weight:800; color:var(--ink); border-bottom:1px solid var(--line); white-space:nowrap;}
+      td{ padding:10px 14px; border-bottom:1px solid var(--line); color:var(--ink2); vertical-align:top; }
+      tr:last-child td{ border-bottom:none; }
+      td:first-child{ font-weight:700; color:var(--ink); white-space:nowrap; }
+
+      /* ---------- diagrams ---------- */
+      .diagram{
+        background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
+        padding:22px; margin:20px 0; box-shadow:var(--shadow);
+      }
+      .diagram .cap{ font-size:13px; color:var(--muted); text-align:center; margin-top:12px; }
+      .diagram svg{ width:100%; height:auto; display:block; }
+      .svg-label{ font-family:"Noto Sans SC",sans-serif; }
+      .podbox{ fill:var(--surface2); stroke:var(--line); }
+      .podbox-app{ fill:var(--accent-soft); stroke:var(--pod); }
+      .podbox-sc{ fill:var(--amber-soft); stroke:var(--sidecar); }
+      .ctrlbox{ fill:var(--surface2); stroke:var(--ctrl); }
+      .svg-t{ fill:var(--ink); font-weight:700; }
+      .svg-s{ fill:var(--muted); }
+      .flowline{ stroke:var(--muted); stroke-width:1.6; fill:none; }
+      .flowline-accent{ stroke:var(--accent); stroke-width:2.2; fill:none; }
+
+      /* ---------- interactive demos ---------- */
+      .demo{
+        background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
+        padding:22px; margin:22px 0; box-shadow:var(--shadow);
+      }
+      .demo-head{ display:flex; align-items:center; gap:10px; margin-bottom:6px; flex-wrap:wrap;}
+      .demo-head .badge{
+        font-size:11.5px; font-weight:800; letter-spacing:.1em; color:var(--accent-ink);
+        background:var(--accent); padding:3px 10px; border-radius:999px;
+      }
+      .demo-head h4{ margin:0; font-size:17px; }
+      .demo p.hint{ font-size:14px; color:var(--muted); margin:4px 0 14px; }
+      .controls{ display:flex; flex-wrap:wrap; gap:12px; align-items:center; margin:14px 0; }
+      button.btn{
+        font-family:inherit; font-size:14px; font-weight:700; cursor:pointer;
+        background:var(--accent); color:var(--accent-ink); border:none; border-radius:10px; padding:9px 18px;
+      }
+      button.btn:hover{ filter:brightness(1.08); }
+      button.btn.ghost{ background:var(--surface2); color:var(--ink); border:1px solid var(--line); }
+      button.btn:disabled{ opacity:.45; cursor:default; }
+      input[type=range]{ flex:1 1 180px; accent-color:var(--accent); height:28px; }
+      .slider-row{ display:flex; align-items:center; gap:14px; margin:10px 0; }
+      .slider-row label{ font-size:14px; font-weight:700; flex:0 0 auto; }
+      .slider-row .val{ font-family:"JetBrains Mono",monospace; font-weight:700; min-width:52px; text-align:right; }
+      .statgrid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:10px; margin-top:14px; }
+      .stat{ background:var(--surface2); border-radius:10px; padding:12px 14px; }
+      .stat .v{ font-family:"JetBrains Mono",monospace; font-size:22px; font-weight:700; }
+      .stat .l{ font-size:12px; color:var(--muted); margin-top:2px; }
+      .stream{ position:relative; height:86px; background:var(--surface2); border-radius:10px; overflow:hidden; margin-top:8px;}
+      .stream .lane-label{ position:absolute; left:10px; font-size:11px; color:var(--muted); font-family:"JetBrains Mono",monospace;}
+      .dot{ position:absolute; width:11px; height:11px; border-radius:50%; top:0; }
+      .legend{ display:flex; gap:16px; flex-wrap:wrap; font-size:13px; color:var(--ink2); margin-top:10px;}
+      .legend i{ display:inline-block; width:11px; height:11px; border-radius:50%; margin-right:6px; vertical-align:-1px;}
+      .switch-row{ display:flex; gap:10px; flex-wrap:wrap; }
+      .switch-row button{
+        font-family:inherit; font-size:14px; font-weight:700; cursor:pointer; padding:9px 16px;
+        border-radius:10px; border:1px solid var(--line); background:var(--surface2); color:var(--ink2);
+      }
+      .switch-row button.on{ background:var(--accent); color:var(--accent-ink); border-color:var(--accent); }
+      .packet{
+        font-family:"JetBrains Mono",monospace; font-size:13px; border-radius:10px; padding:14px 16px;
+        margin-top:14px; word-break:break-all; line-height:1.7; transition:background .3s;
+      }
+      .packet.plain{ background:var(--bad-soft); color:var(--ink); }
+      .packet.enc{ background:var(--ok-soft); color:var(--ink); }
+      .breaker-state{ font-family:"JetBrains Mono",monospace; font-weight:700; font-size:15px; }
+      .logbox{
+        font-family:"JetBrains Mono",monospace; font-size:12px; background:var(--code-bg); color:var(--code-ink);
+        border-radius:10px; padding:12px 14px; height:118px; overflow-y:auto; margin-top:12px; line-height:1.7;
+      }
+      .logbox .ok{ color:#6fe3a5; } .logbox .err{ color:#ff9c9c; } .logbox .fast{ color:#ffd479; }
+
+      /* journey */
+      .journey-steps{ display:flex; flex-direction:column; gap:8px; margin-top:14px; }
+      .jstep{
+        display:flex; gap:12px; align-items:flex-start; padding:10px 14px; border-radius:10px;
+        border:1px solid var(--line); background:var(--surface2); opacity:.45; transition:opacity .25s, border-color .25s;
+      }
+      .jstep.on{ opacity:1; border-color:var(--accent); background:var(--accent-soft); }
+      .jstep .jn{ font-family:"JetBrains Mono",monospace; font-weight:700; background:var(--ink); color:var(--bg); border-radius:50%; width:24px; height:24px; flex:0 0 24px; display:flex; align-items:center; justify-content:center; font-size:13px; margin-top:2px;}
+      .jstep .jt{ font-size:14.5px; color:var(--ink2); }
+      .jstep .jt b{ color:var(--ink); }
+
+      /* ---------- quiz ---------- */
+      .quiz{ border:1px dashed var(--accent); border-radius:var(--radius); padding:20px 22px; margin:24px 0; background:var(--surface); }
+      .quiz .q-ttl{ font-weight:900; font-size:15px; letter-spacing:.05em; color:var(--accent); margin-bottom:6px; }
+      .quiz .q{ font-weight:700; margin:14px 0 8px; }
+      .quiz .opts{ display:flex; flex-direction:column; gap:8px; }
+      .quiz .opt{
+        text-align:left; font-family:inherit; font-size:14.5px; cursor:pointer; color:var(--ink2);
+        background:var(--surface2); border:1px solid var(--line); border-radius:10px; padding:10px 14px;
+      }
+      .quiz .opt:hover{ border-color:var(--accent); }
+      .quiz .opt.right{ background:var(--ok-soft); border-color:var(--ok); color:var(--ink); font-weight:700; }
+      .quiz .opt.wrong{ background:var(--bad-soft); border-color:var(--bad); }
+      .quiz .explain{ display:none; font-size:14px; margin-top:10px; padding:10px 14px; border-radius:10px; background:var(--accent-soft); color:var(--ink2); }
+      .quiz .explain.show{ display:block; }
+
+      .final-score{ font-family:"JetBrains Mono",monospace; font-size:15px; font-weight:700; margin-top:14px; }
+
+      /* ---------- steps / misc ---------- */
+      .steps{ counter-reset:st; display:flex; flex-direction:column; gap:12px; margin:16px 0; }
+      .step{ display:flex; gap:14px; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:16px 18px; }
+      .step::before{
+        counter-increment:st; content:counter(st); font-family:"JetBrains Mono",monospace; font-weight:700;
+        background:var(--accent); color:var(--accent-ink); width:28px; height:28px; border-radius:50%;
+        display:flex; align-items:center; justify-content:center; flex:0 0 28px; margin-top:2px; font-size:14px;
+      }
+      .step div p{ margin:2px 0; }
+      .step .st-t{ font-weight:800; }
+      .kv{ display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:12px; margin:16px 0; }
+      .kv .item{ background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:16px 18px; }
+      .kv .item .t{ font-weight:800; margin-bottom:4px; }
+      .kv .item p{ font-size:14px; margin:0; }
+      footer{ margin-top:80px; padding-top:24px; border-top:1px solid var(--line); color:var(--muted); font-size:13.5px; }
+
+      .topbar{ display:none; }
+      @media (max-width:1020px){
+        .rail{ display:none; }
+        main{ padding:0 18px 90px; }
+        .topbar{
+          display:block; position:sticky; top:0; z-index:20; background:var(--bg);
+          border-bottom:1px solid var(--line); padding:10px 18px; margin:0 -18px;
+        }
+        .topbar select{
+          width:100%; font-family:inherit; font-size:15px; padding:9px 10px; border-radius:10px;
+          border:1px solid var(--line); background:var(--surface); color:var(--ink);
+        }
+        .hero{ padding-top:30px; }
+        section.chapter{ padding-top:44px; }
+      }
+      @media (max-width:640px){
+        table{ min-width:0; font-size:13.5px; }
+        th{ white-space:normal; padding:9px 10px; }
+        td{ padding:9px 10px; }
+        td:first-child{ white-space:normal; }
+      }
+      @media (prefers-reduced-motion: reduce){
+        html{ scroll-behavior:auto; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="layout">
+      <aside class="rail">
+        <div class="brand">Istio 可视化<br/>学习教程<small>SERVICE MESH · 从零开始</small></div>
+        <nav id="railNav">
+          <a href="#start"><span class="n">·</span>开始之前</a>
+          <a href="#ch1"><span class="n">01</span>微服务的烦恼</a>
+          <a href="#ch2"><span class="n">02</span>K8s 的能力边界</a>
+          <a href="#ch3"><span class="n">03</span>服务网格是什么</a>
+          <a href="#ch4"><span class="n">04</span>Istio 架构全景</a>
+          <a href="#ch5"><span class="n">05</span>Sidecar 注入原理</a>
+          <a href="#ch6"><span class="n">06</span>流量管理</a>
+          <a href="#ch7"><span class="n">07</span>安全:mTLS 与授权</a>
+          <a href="#ch8"><span class="n">08</span>可观测性</a>
+          <a href="#ch9"><span class="n">09</span>上手实战与速查</a>
+          <a href="#exam"><span class="n">✓</span>综合自测</a>
+        </nav>
+        <div class="railnote">阅读方式:按章节顺序往下读,每章末尾有小测验;带「动手试试」的演示都可以直接操作。</div>
+      </aside>
+
+      <main>
+        <div class="topbar">
+          <select id="mobileNav" aria-label="章节导航">
+            <option value="#start">开始之前</option>
+            <option value="#ch1">01 · 微服务的烦恼</option>
+            <option value="#ch2">02 · K8s 的能力边界</option>
+            <option value="#ch3">03 · 服务网格是什么</option>
+            <option value="#ch4">04 · Istio 架构全景</option>
+            <option value="#ch5">05 · Sidecar 注入原理</option>
+            <option value="#ch6">06 · 流量管理</option>
+            <option value="#ch7">07 · 安全:mTLS 与授权</option>
+            <option value="#ch8">08 · 可观测性</option>
+            <option value="#ch9">09 · 上手实战与速查</option>
+            <option value="#exam">综合自测</option>
+          </select>
+        </div>
+
+        <div class="col">
+          <header class="hero">
+            <span class="tagline">给 KUBERNETES 初学者的 ISTIO 系统课</span>
+            <h1>先搞懂「为什么」,再学 Istio</h1>
+            <p class="lead">Istio 不是凭空出现的时髦工具——它是微服务长大之后,一堆通信难题逼出来的答案。这套教程按「问题 → 旧解法 → 新思路 → Istio 怎么做」的顺序,一步步把每个技术点讲透。</p>
+            <div class="meta">
+              <span>共 <b>9 章</b> + 综合自测</span>
+              <span><b>4 个</b>可动手操作的交互演示</span>
+              <span>前置要求:知道 <b>Pod / Service / Deployment</b> 是什么即可</span>
+            </div>
+          </header>
+
+          <!-- ============ 开始之前 ============ -->
+          <section class="chapter" id="start">
+            <div class="ch-head">
+              <div class="ch-num">序</div>
+              <div>
+                <h2>开始之前:30 秒补齐前置知识</h2>
+                <div class="sub">只需要这四个概念,后面的内容都建立在它们之上</div>
+              </div>
+            </div>
+            <div class="kv">
+              <div class="item"><div class="t">Pod</div><p>K8s 调度的最小单位。一个 Pod 里可以放<strong>多个共享网络的容器</strong>——记住这一点,第 5 章的 Sidecar 就靠它。</p></div>
+              <div class="item"><div class="t">Deployment</div><p>声明「我要跑 3 个副本」,K8s 负责让实际状态一直等于这个期望。发版、扩缩容都归它管。</p></div>
+              <div class="item"><div class="t">Service</div><p>给一组会变的 Pod 一个<strong>固定名字和虚拟 IP</strong>。别人用名字访问,Service 在后面挑一个 Pod 转发。</p></div>
+              <div class="item"><div class="t">Namespace</div><p>集群内的逻辑隔离空间,像文件夹一样把资源分组。Istio 的很多配置都按 Namespace 生效。</p></div>
+            </div>
+            <div class="callout key">
+              <div class="ttl">本教程的一句话主线</div>
+              <p>微服务之间要打无数通「电话」。Istio 的做法是:<strong>给每个服务配一名专职接线员(代理),再建一个总调度室统一指挥</strong>。全书都在展开这一句话。</p>
+            </div>
+          </section>
+
+          <!-- ============ 第1章 ============ -->
+          <section class="chapter" id="ch1">
+            <div class="ch-head">
+              <div class="ch-num">01</div>
+              <div>
+                <h2>微服务的烦恼:拆开容易,通信难</h2>
+                <div class="sub">Istio 要解决的问题,全部诞生于这一步</div>
+              </div>
+            </div>
+
+            <h3>1.1 从单体说起</h3>
+            <p>最早的应用是一个<strong>单体(Monolith)</strong>:用户、订单、支付、库存全写在一个进程里,函数之间直接调用,一次请求不出进程,没有网络问题。代价是:任何一处改动都要整体重新发布;一个模块的 Bug 能拖垮全部;想给「支付」单独扩容,只能把整个应用复制一份。</p>
+            <p>于是大家把单体按业务拆成许多小服务,每个服务独立开发、独立部署、独立扩缩——这就是<strong>微服务(Microservices)</strong>。拆完之后,进程内函数调用变成了<strong>跨进程的网络调用</strong>,麻烦随之而来。</p>
+
+            <div class="diagram">
+              <svg viewBox="0 0 760 250" role="img" aria-label="单体与微服务对比图">
+                <text x="150" y="26" text-anchor="middle" class="svg-label svg-t" font-size="15">单体:一个进程全包</text>
+                <rect x="40" y="42" width="220" height="168" rx="12" class="podbox-app" stroke-width="1.6"/>
+                <rect x="62" y="64" width="80" height="36" rx="8" class="podbox"/>
+                <text x="102" y="87" text-anchor="middle" class="svg-label svg-t" font-size="13">用户</text>
+                <rect x="158" y="64" width="80" height="36" rx="8" class="podbox"/>
+                <text x="198" y="87" text-anchor="middle" class="svg-label svg-t" font-size="13">订单</text>
+                <rect x="62" y="116" width="80" height="36" rx="8" class="podbox"/>
+                <text x="102" y="139" text-anchor="middle" class="svg-label svg-t" font-size="13">支付</text>
+                <rect x="158" y="116" width="80" height="36" rx="8" class="podbox"/>
+                <text x="198" y="139" text-anchor="middle" class="svg-label svg-t" font-size="13">库存</text>
+                <text x="150" y="186" text-anchor="middle" class="svg-label svg-s" font-size="12">内部调用 = 函数调用,快而可靠</text>
+
+                <text x="540" y="26" text-anchor="middle" class="svg-label svg-t" font-size="15">微服务:拆开后全是网络调用</text>
+                <rect x="330" y="52" width="110" height="46" rx="10" class="podbox-app" stroke-width="1.6"/>
+                <text x="385" y="80" text-anchor="middle" class="svg-label svg-t" font-size="13">订单服务</text>
+                <rect x="560" y="52" width="110" height="46" rx="10" class="podbox-app" stroke-width="1.6"/>
+                <text x="615" y="80" text-anchor="middle" class="svg-label svg-t" font-size="13">支付服务</text>
+                <rect x="560" y="140" width="110" height="46" rx="10" class="podbox-app" stroke-width="1.6"/>
+                <text x="615" y="168" text-anchor="middle" class="svg-label svg-t" font-size="13">库存服务</text>
+                <rect x="330" y="140" width="110" height="46" rx="10" class="podbox-app" stroke-width="1.6"/>
+                <text x="385" y="168" text-anchor="middle" class="svg-label svg-t" font-size="13">用户服务</text>
+                <path d="M440 66 L560 66" class="flowline" stroke-dasharray="5 4" marker-end="url(#arr1)"/>
+                <path d="M440 84 L560 152" class="flowline" stroke-dasharray="5 4" marker-end="url(#arr1)"/>
+                <path d="M385 98 L385 140" class="flowline" stroke-dasharray="5 4" marker-end="url(#arr1)"/>
+                <text x="500" y="52" text-anchor="middle" class="svg-label svg-s" font-size="11.5">网络会抖、会断、会慢</text>
+                <defs><marker id="arr1" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto"><path d="M0 0 L7 3 L0 6 Z" fill="var(--muted)"/></marker></defs>
+              </svg>
+              <div class="cap">拆分前是函数调用;拆分后,每条虚线都是一次不可靠的网络通信</div>
+            </div>
+
+            <h3>1.2 拆完之后,凭空多出的七个问题</h3>
+            <p>假设你的电商系统拆成了 20 个服务,一次下单要串起 6 个服务。以下问题每一个都真实存在:</p>
+            <div class="tblwrap"><table>
+              <tr><th style="width:130px">问题</th><th>具体长什么样</th></tr>
+              <tr><td>服务发现</td><td>支付服务有 5 个副本,IP 还天天变。订单服务该把请求发给谁?地址簿谁来维护?</td></tr>
+              <tr><td>负载均衡</td><td>5 个副本不能只压一个;某个副本正忙时,能不能少给它分一点?</td></tr>
+              <tr><td>超时与重试</td><td>网络偶尔抖一下就失败,重试一次大概率能成;但对方真挂了,无限重试又会把自己拖死。</td></tr>
+              <tr><td>熔断</td><td>库存服务挂了,订单服务每次调用都要等超时才报错,线程被占满,故障会像多米诺骨牌一样扩散。</td></tr>
+              <tr><td>灰度发布</td><td>新版本只想给 5% 的真实用户试用,出问题立刻切回来——怎么做?</td></tr>
+              <tr><td>通信安全</td><td>服务间默认是明文 HTTP:内容能被窃听、请求能被伪造。我怎么确认「自称支付服务」的对方真的是它?</td></tr>
+              <tr><td>可观测性</td><td>一次请求经过 6 个服务后变慢了,到底慢在哪一环?没有上帝视角,排查全靠挨个翻日志。</td></tr>
+            </table></div>
+
+            <h3>1.3 第一代解法:把能力写进代码(SDK)</h3>
+            <p>最直接的想法:写一个公共库,封装服务发现、重试、熔断、追踪,每个服务都引这个库。Java 生态的 Spring Cloud、Netflix OSS(Eureka、Hystrix、Ribbon)就是这条路线。它能用,但有三个硬伤:</p>
+            <ul>
+              <li><strong>多语言重复造轮子</strong>:公司里有 Java、Go、Python、Node……每个语言都要实现一遍同样的能力,行为还很难一致。</li>
+              <li><strong>升级 = 全量发版</strong>:想把重试策略改个参数、给熔断库修个 Bug,要推动几十个团队各自升级依赖、重新上线。</li>
+              <li><strong>与业务代码耦合</strong>:业务代码里混着大量治理代码,读起来累,换框架时伤筋动骨。</li>
+            </ul>
+            <div class="callout key">
+              <div class="ttl">关键转折</div>
+              <p>这些烦恼本质上<strong>与业务无关,是通信本身的共性问题</strong>。既然如此,能不能把它们从业务代码里搬走,下沉到基础设施层统一解决?这正是服务网格的出发点——下一章先看 K8s 已经帮我们走了多远。</p>
+            </div>
+
+            <div class="quiz" data-quiz>
+              <div class="q-ttl">本章小测</div>
+              <p class="q">1. 微服务架构下,原来不在的问题是怎么来的?</p>
+              <div class="opts">
+                <button class="opt" data-wrong>代码量变多了,编译变慢了</button>
+                <button class="opt" data-right>进程内的函数调用变成了跨进程的网络调用,而网络不可靠</button>
+                <button class="opt" data-wrong>数据库被拆分导致数据不一致</button>
+              </div>
+              <div class="explain">微服务的核心代价就是「本地调用变远程调用」:超时、重试、熔断、服务发现等问题,全部源于网络的不可靠性。</div>
+              <p class="q">2. SDK 式治理(Spring Cloud 那类)最大的硬伤是?</p>
+              <div class="opts">
+                <button class="opt" data-wrong>性能不如原生代码</button>
+                <button class="opt" data-wrong>只能用在 Spring 项目里</button>
+                <button class="opt" data-right>与语言和业务代码耦合:每种语言要重写一遍,升级要推动所有服务重新发版</button>
+              </div>
+              <div class="explain">治理逻辑写进业务进程,意味着治理能力的每一次变化都变成一次次业务发版。服务网格要做的,就是把这层能力从进程里搬出去。</div>
+            </div>
+          </section>
+
+          <!-- ============ 第2章 ============ -->
+          <section class="chapter" id="ch2">
+            <div class="ch-head">
+              <div class="ch-num">02</div>
+              <div>
+                <h2>Kubernetes 解决了什么,又止步于哪里</h2>
+                <div class="sub">Istio 不是来取代 K8s 的,而是补上它故意没做的那一层</div>
+              </div>
+            </div>
+
+            <h3>2.1 K8s 已经给的:粗粒度通信能力</h3>
+            <p>K8s 的 Service 已经解决了第一章问题清单里的头两项的一大半:</p>
+            <ul>
+              <li><strong>服务发现</strong>:Service 提供固定虚拟 IP 和 DNS 名(<code>payments.default.svc.cluster.local</code>),背后的 Pod 随便生灭,调用方无感。</li>
+              <li><strong>粗粒度负载均衡</strong>:节点的 kube-proxy 用 iptables/IPVS 把流量分发到后端 Pod,策略基本是随机或轮询。</li>
+              <li><strong>自愈</strong>:Pod 挂了 Deployment 会补上,探针不通过的 Pod 会被摘出 Service 的后端列表。</li>
+            </ul>
+            <p>如果你的诉求只是「能连上、别全压一个」,K8s 原生能力足够了。但真实生产系统的诉求往往更细。</p>
+
+            <h3>2.2 K8s 的天花板:它只看得懂四层</h3>
+            <p>网络世界有个分层模型常被引用:<strong>四层(L4)</strong>指 IP + 端口的转发,只看「寄到哪个地址」;<strong>七层(L7)</strong>指理解 HTTP/gRPC 的内容,能看路径、请求头、方法。kube-proxy 工作在四层,它眼里只有数据包,没有「请求」的概念,于是这些需求它一个都做不到:</p>
+            <div class="tblwrap"><table>
+              <tr><th style="width:170px">想要的能力</th><th style="width:110px">K8s 原生</th><th>缺了会怎样</th></tr>
+              <tr><td>按比例灰度(90/10)</td><td>✗ 只能靠副本数近似</td><td>10 个副本里换 1 个 ≈ 10%,想要 1% 就得养 100 个副本</td></tr>
+              <tr><td>按请求头/路径路由</td><td>✗</td><td>「带 beta 标记的用户走新版本」无法实现</td></tr>
+              <tr><td>超时 / 重试 / 熔断</td><td>✗</td><td>只能写进业务代码,回到第 1 章的 SDK 老路</td></tr>
+              <tr><td>服务间加密与身份</td><td>✗ 默认明文</td><td>集群内网一旦被突破,流量一览无余且可伪造</td></tr>
+              <tr><td>请求级指标与追踪</td><td>✗ 只有容器级监控</td><td>知道 CPU 高,不知道哪个接口在报错</td></tr>
+              <tr><td>故障注入演练</td><td>✗</td><td>想模拟「库存服务延迟 5 秒」只能改代码或拔网线</td></tr>
+            </table></div>
+            <p>K8s 的 Ingress 也只管<strong>南北向流量</strong>(集群外 → 集群内),而且标准字段少得可怜;服务之间互调的<strong>东西向流量</strong>才是微服务的大头,K8s 基本没管。</p>
+            <div class="callout key">
+              <div class="ttl">划清边界</div>
+              <p>K8s 管的是<strong>「把服务跑起来」</strong>(调度、扩缩、自愈);Istio 管的是<strong>「让服务好好说话」</strong>(路由、韧性、安全、观测)。两者是上下层关系,不是竞争关系——Istio 本身就跑在 K8s 之上,它的配置也以 K8s 资源的形式存在。</p>
+            </div>
+
+            <div class="quiz" data-quiz>
+              <div class="q-ttl">本章小测</div>
+              <p class="q">1. 为什么 kube-proxy 做不了「按请求头路由」?</p>
+              <div class="opts">
+                <button class="opt" data-wrong>因为它的性能不够高</button>
+                <button class="opt" data-right>它工作在四层,只看 IP 和端口,根本看不到 HTTP 请求头</button>
+                <button class="opt" data-wrong>因为请求头是加密的</button>
+              </div>
+              <div class="explain">L4 转发只处理数据包层面的地址;要按 header、路径、比例做决策,必须有一个能解析 HTTP 语义的 L7 代理——这正是 Envoy 的位置。</div>
+              <p class="q">2. 下面哪项是 K8s 原生已经做得很好的?</p>
+              <div class="opts">
+                <button class="opt" data-right>服务发现与粗粒度负载均衡(Service + kube-proxy)</button>
+                <button class="opt" data-wrong>服务间 mTLS 加密</button>
+                <button class="opt" data-wrong>分布式链路追踪</button>
+              </div>
+              <div class="explain">Service 给了固定入口和后端分发,这是 Istio 也复用的地基;Istio 补的是它之上的 L7 治理能力。</div>
+            </div>
+          </section>
+
+          <!-- ============ 第3章 ============ -->
+          <section class="chapter" id="ch3">
+            <div class="ch-head">
+              <div class="ch-num">03</div>
+              <div>
+                <h2>服务网格:给每个服务配一名接线员</h2>
+                <div class="sub">Service Mesh 的核心思想,只有两个词:代理 + 分工</div>
+              </div>
+            </div>
+
+            <h3>3.1 核心思想:流量先过代理</h3>
+            <p>服务网格(Service Mesh)的办法非常朴素:<strong>在每个服务实例旁边放一个轻量网络代理,让所有进出流量都先经过它</strong>。业务进程不再直接和外界通话,只和身边这个代理说话;治理逻辑(重试、熔断、加密、打点)全部写在代理里。</p>
+            <p>还记得第 0 章说的吗——Pod 里可以放多个共享网络的容器。代理就以「伴生容器」的形式和业务容器住进同一个 Pod,这种模式叫 <strong>Sidecar(边车)</strong>:像摩托车旁的挎斗,不抢主驾,但一路同行。这个代理在 Istio 里是 <strong>Envoy</strong>。</p>
+
+            <div class="diagram">
+              <svg viewBox="0 0 760 210" role="img" aria-label="Sidecar 模式示意图">
+                <text x="190" y="24" text-anchor="middle" class="svg-label svg-t" font-size="14">没有网格:服务直连</text>
+                <rect x="60" y="70" width="100" height="52" rx="10" class="podbox-app" stroke-width="1.6"/>
+                <text x="110" y="101" text-anchor="middle" class="svg-label svg-t" font-size="13">订单 App</text>
+                <rect x="230" y="70" width="100" height="52" rx="10" class="podbox-app" stroke-width="1.6"/>
+                <text x="280" y="101" text-anchor="middle" class="svg-label svg-t" font-size="13">支付 App</text>
+                <path d="M160 96 L230 96" class="flowline" marker-end="url(#arr3)"/>
+                <text x="190" y="160" text-anchor="middle" class="svg-label svg-s" font-size="12">治理逻辑只能写进 App 自己</text>
+
+                <text x="570" y="24" text-anchor="middle" class="svg-label svg-t" font-size="14">有网格:流量先过 Sidecar</text>
+                <rect x="420" y="44" width="140" height="104" rx="12" class="podbox"/>
+                <text x="432" y="64" class="svg-label svg-s" font-size="11">Pod</text>
+                <rect x="434" y="72" width="52" height="60" rx="8" class="podbox-app" stroke-width="1.5"/>
+                <text x="460" y="98" text-anchor="middle" class="svg-label svg-t" font-size="12">订单</text>
+                <text x="460" y="116" text-anchor="middle" class="svg-label svg-t" font-size="12">App</text>
+                <rect x="494" y="72" width="52" height="60" rx="8" class="podbox-sc" stroke-width="1.5"/>
+                <text x="520" y="98" text-anchor="middle" class="svg-label svg-t" font-size="12">Envoy</text>
+                <text x="520" y="116" text-anchor="middle" class="svg-label svg-s" font-size="10.5">sidecar</text>
+                <rect x="600" y="44" width="140" height="104" rx="12" class="podbox"/>
+                <text x="612" y="64" class="svg-label svg-s" font-size="11">Pod</text>
+                <rect x="614" y="72" width="52" height="60" rx="8" class="podbox-sc" stroke-width="1.5"/>
+                <text x="640" y="98" text-anchor="middle" class="svg-label svg-t" font-size="12">Envoy</text>
+                <text x="640" y="116" text-anchor="middle" class="svg-label svg-s" font-size="10.5">sidecar</text>
+                <rect x="674" y="72" width="52" height="60" rx="8" class="podbox-app" stroke-width="1.5"/>
+                <text x="700" y="98" text-anchor="middle" class="svg-label svg-t" font-size="12">支付</text>
+                <text x="700" y="116" text-anchor="middle" class="svg-label svg-t" font-size="12">App</text>
+                <path d="M546 102 L614 102" class="flowline-accent" marker-end="url(#arr3b)"/>
+                <text x="580" y="88" text-anchor="middle" class="svg-label svg-s" font-size="11">加密 · 重试 · 打点</text>
+                <text x="580" y="186" text-anchor="middle" class="svg-label svg-s" font-size="12">App 只管业务,治理全归 Envoy</text>
+                <defs>
+                  <marker id="arr3" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto"><path d="M0 0 L7 3 L0 6 Z" fill="var(--muted)"/></marker>
+                  <marker id="arr3b" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto"><path d="M0 0 L7 3 L0 6 Z" fill="var(--accent)"/></marker>
+                </defs>
+              </svg>
+              <div class="cap">同一个 Pod 内 App 与 Envoy 共享网络;跨 Pod 的流量永远是 Envoy ↔ Envoy</div>
+            </div>
+
+            <h3>3.2 第二个关键分工:数据面与控制面</h3>
+            <p>几百个 Envoy 各自为政可不行:谁来告诉每个 Envoy「支付服务的灰度比例是 90/10」「库存服务熔断阈值是 50%」?于是网格天然分成两层,这个划分是理解一切服务网格产品的钥匙:</p>
+            <div class="kv">
+              <div class="item"><div class="t">数据面(Data Plane)</div><p>就是<strong>Envoy 们本身</strong>。它们站在流量路径上,真正搬运每一个请求,并在搬运时执行重试、加密、打点等动作。类比:<strong>路口的交警</strong>,车流都从他们手里过。</p></div>
+              <div class="item"><div class="t">控制面(Control Plane)</div><p><strong>不在流量路径上</strong>。它收集你写的配置,翻译成每个 Envoy 能懂的指令并下发;还负责签发身份证书。类比:<strong>交管指挥中心</strong>,自己不拦车,只定规则、发指令。</p></div>
+            </div>
+            <div class="callout warn">
+              <div class="ttl">一个常见误解</div>
+              <p>控制面挂了,业务流量<strong>不会立刻中断</strong>——Envoy 手里还有上一份配置,照常干活;只是改不了新规则、签不了新证书。反过来,数据面(某个 Envoy)挂了,只有它所在的那个 Pod 受影响。分清这两层,排障时才不会找错对象。</p>
+            </div>
+
+            <h3>3.3 为什么这套设计能赢过 SDK</h3>
+            <ul>
+              <li><strong>与语言无关</strong>:Envoy 是独立进程,Java、Go、Python 服务一视同仁,行为完全一致。</li>
+              <li><strong>升级不用动业务</strong>:改治理策略 = 改控制面的配置,秒级下发到所有 Envoy,业务零发版。</li>
+              <li><strong>业务代码变干净</strong>:业务进程甚至不知道网格的存在,它发出的还是普通 HTTP 请求。</li>
+            </ul>
+            <p>代价也要说清楚:每跳流量多过一道代理,<strong>延迟和资源开销会增加</strong>(每 Pod 多一个容器);系统组件变多,运维复杂度上升。所以网格适合服务数量多、治理需求强的场景——这是第 9 章选型判断的依据。</p>
+
+            <div class="quiz" data-quiz>
+              <div class="q-ttl">本章小测</div>
+              <p class="q">1. 控制面的职责是?</p>
+              <div class="opts">
+                <button class="opt" data-wrong>亲自转发每一个业务请求</button>
+                <button class="opt" data-right>把用户配置翻译成指令下发给各 Envoy,并负责证书签发</button>
+                <button class="opt" data-wrong>存储业务数据</button>
+              </div>
+              <div class="explain">控制面定规则、不碰流量;数据面(Envoy)执行规则、搬运流量。控制面短暂故障时,已有流量靠 Envoy 手中的旧配置继续工作。</div>
+              <p class="q">2. Sidecar 能和业务容器「同住」的前提是?</p>
+              <div class="opts">
+                <button class="opt" data-wrong>它们用同一种编程语言编写</button>
+                <button class="opt" data-right>同一个 Pod 内的容器共享网络命名空间,可以通过 localhost 互相访问</button>
+                <button class="opt" data-wrong>它们被打上了相同的标签</button>
+              </div>
+              <div class="explain">Pod 内容器共享 IP 与端口空间,Envoy 才能「贴身」接管业务容器的全部进出流量。</div>
+            </div>
+          </section>
+
+          <!-- ============ 第4章 ============ -->
+          <section class="chapter" id="ch4">
+            <div class="ch-head">
+              <div class="ch-num">04</div>
+              <div>
+                <h2>Istio 架构全景:一个大脑,无数只手</h2>
+                <div class="sub">Istio = 一个控制面组件 istiod + 满集群的 Envoy</div>
+              </div>
+            </div>
+
+            <h3>4.1 认识主角们</h3>
+            <p>Istio 由 Google、IBM 与 Lyft 在 2017 年发起,现为 CNCF 毕业项目。早期版本控制面有 Pilot、Galley、Citadel 等好几个组件,新版(1.5 起)已合并成一个进程 <strong>istiod</strong>,初学者只需记它一个:</p>
+            <div class="tblwrap"><table>
+              <tr><th style="width:170px">组件</th><th>干什么</th></tr>
+              <tr><td>istiod(控制面)</td><td>读你写的 Istio 配置资源,翻译成 Envoy 配置并通过 <span class="en">xDS</span> 协议持续下发;内置 CA,给每个工作负载签发身份证书;校验配置合法性。</td></tr>
+              <tr><td>Envoy Sidecar(数据面)</td><td>随每个业务 Pod 注入的代理。接管进出流量,执行路由、重试、熔断、mTLS、指标上报。是 Lyft 开源、C++ 编写的 L7 代理,现属 CNCF。</td></tr>
+              <tr><td>Ingress Gateway</td><td>本质是一个独立部署的 Envoy,站在集群门口处理<strong>南北向</strong>流量(外部请求进来)。</td></tr>
+              <tr><td>Egress Gateway</td><td>可选。所有访问集群外部的流量从这里出,方便统一管控与审计。</td></tr>
+            </table></div>
+            <p>补充一个词:<strong class="en">xDS</strong> 是控制面给 Envoy 下发配置的一组协议(LDS 监听、RDS 路由、CDS 集群、EDS 端点……名字不同,套路相同)。你不需要背,记住「istiod 通过 xDS 把配置推给所有 Envoy,变更近实时生效」即可。</p>
+
+            <div class="diagram">
+              <svg viewBox="0 0 760 330" role="img" aria-label="Istio 整体架构图">
+                <rect x="270" y="14" width="220" height="64" rx="12" class="ctrlbox" stroke-width="1.8"/>
+                <text x="380" y="42" text-anchor="middle" class="svg-label svg-t" font-size="15">istiod · 控制面</text>
+                <text x="380" y="63" text-anchor="middle" class="svg-label svg-s" font-size="11.5">配置下发(xDS)· 证书签发(CA)</text>
+
+                <rect x="30" y="130" width="180" height="150" rx="12" class="podbox"/>
+                <text x="44" y="152" class="svg-label svg-s" font-size="11">Pod A</text>
+                <rect x="46" y="162" width="68" height="96" rx="8" class="podbox-app" stroke-width="1.5"/>
+                <text x="80" y="204" text-anchor="middle" class="svg-label svg-t" font-size="12.5">订单</text>
+                <text x="80" y="222" text-anchor="middle" class="svg-label svg-t" font-size="12.5">App</text>
+                <rect x="122" y="162" width="72" height="96" rx="8" class="podbox-sc" stroke-width="1.5"/>
+                <text x="158" y="204" text-anchor="middle" class="svg-label svg-t" font-size="12.5">Envoy</text>
+                <text x="158" y="222" text-anchor="middle" class="svg-label svg-s" font-size="10.5">sidecar</text>
+
+                <rect x="290" y="130" width="180" height="150" rx="12" class="podbox"/>
+                <text x="304" y="152" class="svg-label svg-s" font-size="11">Pod B</text>
+                <rect x="306" y="162" width="72" height="96" rx="8" class="podbox-sc" stroke-width="1.5"/>
+                <text x="342" y="204" text-anchor="middle" class="svg-label svg-t" font-size="12.5">Envoy</text>
+                <text x="342" y="222" text-anchor="middle" class="svg-label svg-s" font-size="10.5">sidecar</text>
+                <rect x="386" y="162" width="68" height="96" rx="8" class="podbox-app" stroke-width="1.5"/>
+                <text x="420" y="204" text-anchor="middle" class="svg-label svg-t" font-size="12.5">支付</text>
+                <text x="420" y="222" text-anchor="middle" class="svg-label svg-t" font-size="12.5">App</text>
+
+                <rect x="550" y="130" width="180" height="150" rx="12" class="podbox"/>
+                <text x="564" y="152" class="svg-label svg-s" font-size="11">集群入口</text>
+                <rect x="576" y="162" width="128" height="96" rx="8" class="podbox-sc" stroke-width="1.5"/>
+                <text x="640" y="200" text-anchor="middle" class="svg-label svg-t" font-size="12.5">Ingress</text>
+                <text x="640" y="218" text-anchor="middle" class="svg-label svg-t" font-size="12.5">Gateway</text>
+                <text x="640" y="238" text-anchor="middle" class="svg-label svg-s" font-size="10.5">独立部署的 Envoy</text>
+
+                <path d="M330 78 L180 128" class="flowline" stroke-dasharray="5 4"/>
+                <path d="M380 78 L380 128" class="flowline" stroke-dasharray="5 4"/>
+                <path d="M430 78 L620 128" class="flowline" stroke-dasharray="5 4"/>
+                <text x="252" y="98" class="svg-label svg-s" font-size="11">xDS 配置 + 证书</text>
+
+                <path d="M194 210 L306 210" class="flowline-accent" marker-end="url(#arr4)"/>
+                <text x="250" y="196" text-anchor="middle" class="svg-label svg-s" font-size="11">mTLS 业务流量</text>
+                <path d="M550 236 L470 236" class="flowline-accent" marker-end="url(#arr4)"/>
+                <defs><marker id="arr4" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto"><path d="M0 0 L7 3 L0 6 Z" fill="var(--accent)"/></marker></defs>
+              </svg>
+              <div class="cap">虚线是控制流(配置与证书),实线是数据流(业务请求)——两条线永远不要混为一谈</div>
+            </div>
+
+            <h3>4.2 一次请求的完整旅程</h3>
+            <p>用户在浏览器点下「下单」,请求进入集群,最终拿到响应。下面这个演示把全程拆成 6 步——点「播放」,注意请求<strong>从不直接接触业务容器</strong>,每一跳都被两边的 Envoy 经手:</p>
+
+            <div class="demo" id="journeyDemo">
+              <div class="demo-head"><span class="badge">动手试试</span><h4>请求旅程放映机</h4></div>
+              <p class="hint">一个外部请求从进入集群到返回响应的全过程。反复看两遍,你就理解 Istio 的流量路径了。</p>
+              <svg viewBox="0 0 760 150" role="img" aria-label="请求旅程示意图" style="width:100%;height:auto;">
+                <rect x="8" y="52" width="86" height="46" rx="10" class="podbox"/>
+                <text x="51" y="80" text-anchor="middle" class="svg-label svg-t" font-size="12.5">浏览器</text>
+                <rect x="128" y="52" width="104" height="46" rx="10" class="podbox-sc" stroke-width="1.6"/>
+                <text x="180" y="72" text-anchor="middle" class="svg-label svg-t" font-size="12">Ingress</text>
+                <text x="180" y="89" text-anchor="middle" class="svg-label svg-t" font-size="12">Gateway</text>
+                <rect x="266" y="38" width="150" height="74" rx="12" class="podbox"/>
+                <text x="276" y="56" class="svg-label svg-s" font-size="10">Pod:订单</text>
+                <rect x="276" y="62" width="58" height="38" rx="7" class="podbox-sc" stroke-width="1.4"/>
+                <text x="305" y="85" text-anchor="middle" class="svg-label svg-t" font-size="11">Envoy</text>
+                <rect x="342" y="62" width="58" height="38" rx="7" class="podbox-app" stroke-width="1.4"/>
+                <text x="371" y="85" text-anchor="middle" class="svg-label svg-t" font-size="11">App</text>
+                <rect x="450" y="38" width="150" height="74" rx="12" class="podbox"/>
+                <text x="460" y="56" class="svg-label svg-s" font-size="10">Pod:支付</text>
+                <rect x="460" y="62" width="58" height="38" rx="7" class="podbox-sc" stroke-width="1.4"/>
+                <text x="489" y="85" text-anchor="middle" class="svg-label svg-t" font-size="11">Envoy</text>
+                <rect x="526" y="62" width="58" height="38" rx="7" class="podbox-app" stroke-width="1.4"/>
+                <text x="555" y="85" text-anchor="middle" class="svg-label svg-t" font-size="11">App</text>
+                <rect x="634" y="52" width="110" height="46" rx="10" class="podbox"/>
+                <text x="689" y="80" text-anchor="middle" class="svg-label svg-t" font-size="12.5">响应返回</text>
+                <path id="journeyPath" d="M94 75 L128 75 L266 75 L450 75 L600 75 L634 75" class="flowline" stroke-dasharray="4 4"/>
+                <circle id="journeyDot" r="8" cx="51" cy="75" fill="var(--accent)" stroke="var(--surface)" stroke-width="2.5" style="opacity:0"/>
+              </svg>
+              <div class="controls">
+                <button class="btn" id="journeyPlay">▶ 播放请求旅程</button>
+                <button class="btn ghost" id="journeyReset">重置</button>
+              </div>
+              <div class="journey-steps">
+                <div class="jstep" data-step="0"><div class="jn">1</div><div class="jt"><b>用户发起请求</b> —— 浏览器向集群入口发出 <span class="en">POST /orders</span>,请求首先到达 Ingress Gateway。</div></div>
+                <div class="jstep" data-step="1"><div class="jn">2</div><div class="jt"><b>网关按规则放行</b> —— Gateway 也是 Envoy:它按 Gateway/VirtualService 配置匹配域名与路径,决定把请求交给「订单」服务。</div></div>
+                <div class="jstep" data-step="2"><div class="jn">3</div><div class="jt"><b>到达订单 Pod 的 Envoy</b> —— 请求先落到 sidecar 的入站监听,Envoy 在这里做身份校验、限流与指标记录,然后才转给本机 App。</div></div>
+                <div class="jstep" data-step="3"><div class="jn">4</div><div class="jt"><b>订单 App 处理并调用支付</b> —— App 只管业务逻辑,它向 <span class="en">payments</span> 发起普通 HTTP 调用,却不知道这个请求会先被自己身边的 Envoy 接管。</div></div>
+                <div class="jstep" data-step="4"><div class="jn">5</div><div class="jt"><b>Envoy ↔ Envoy 的一跳</b> —— 出站 Envoy 选副本、建 mTLS 加密通道;支付 Pod 的 Envoy 解密验身后交给支付 App。全程的重试、熔断、追踪都在这一段发生。</div></div>
+                <div class="jstep" data-step="5"><div class="jn">6</div><div class="jt"><b>响应原路返回</b> —— 响应沿相反路径回到浏览器。两个 Envoy 各自把这一跳的耗时、状态码上报,拼成第 8 章的完整链路。</div></div>
+              </div>
+            </div>
+
+            <div class="quiz" data-quiz>
+              <div class="q-ttl">本章小测</div>
+              <p class="q">1. 关于 istiod,下面哪句是对的?</p>
+              <div class="opts">
+                <button class="opt" data-wrong>每个 Pod 里都跑一份 istiod</button>
+                <button class="opt" data-right>它是一个统一的控制面进程,负责配置下发(xDS)与证书签发,不在业务流量路径上</button>
+                <button class="opt" data-wrong>它负责存储业务请求的数据</button>
+              </div>
+              <div class="explain">istiod 部署在 istio-system 命名空间,通常几个副本即可服务全集群;新版 Istio 已把老版本的 Pilot/Galley/Citadel 合并进它。</div>
+              <p class="q">2. 外部流量进入集群时,第一个接触它的 Istio 组件是?</p>
+              <div class="opts">
+                <button class="opt" data-wrong>istiod</button>
+                <button class="opt" data-wrong>业务 Pod 的 sidecar</button>
+                <button class="opt" data-right>Ingress Gateway(一个独立部署的 Envoy)</button>
+              </div>
+              <div class="explain">南北向流量由 Ingress Gateway 把守;东西向流量由各 Pod 的 sidecar 互联。两者跑的都是 Envoy,只是位置和配置不同。</div>
+            </div>
+          </section>
+
+          <!-- ============ 第5章 ============ -->
+          <section class="chapter" id="ch5">
+            <div class="ch-head">
+              <div class="ch-num">05</div>
+              <div>
+                <h2>Sidecar 是怎么「住进」Pod 的</h2>
+                <div class="sub">自动注入 + iptables 劫持:Istio 最精巧的一步</div>
+              </div>
+            </div>
+
+            <h3>5.1 自动注入:你什么都不用改</h3>
+            <p>你写的 Deployment 里只有一个业务容器,Pod 跑起来却有两个——多出来的 Envoy 是谁塞进去的?答案是 K8s 的<strong>准入 Webhook(MutatingAdmissionWebhook)</strong>:Pod 创建前,API Server 会先问一句「有人要改这个 Pod 吗?」,Istio 的注入器就在这时把 Envoy 容器和一个初始化容器<strong>补进 Pod 的定义</strong>,然后才真正创建。</p>
+            <p>开启方式只有一行:给命名空间打上标签,之后这个空间里新建的 Pod 全部自动注入:</p>
+            <pre><span class="c"># 给 default 命名空间开启自动注入</span>
+kubectl label namespace default istio-injection=enabled
+
+<span class="c"># 部署业务后验证:READY 2/2 说明业务容器 + Envoy 都在</span>
+kubectl get pods
+<span class="c"># NAME                        READY   STATUS</span>
+<span class="c"># orders-7d9f8b6c4-x2abc      2/2     Running</span></pre>
+            <div class="callout warn">
+              <div class="ttl">为什么这件事重要</div>
+              <p>注入发生在 K8s 层面,<strong>业务镜像、业务代码、Deployment 的业务部分全都不用动</strong>。这是服务网格「对业务无侵入」承诺的兑现方式,也是它碾压 SDK 方案的关键一招。</p>
+            </div>
+
+            <h3>5.2 流量劫持:iptables 改道</h3>
+            <p>Envoy 住进来了,但业务容器凭什么乖乖把流量交给它?靠那个一起注入的<strong>初始化容器 <span class="en">istio-init</span></strong>:它在业务启动前先运行一次,用 iptables 规则改写本 Pod 的流量走向,改完即退出:</p>
+            <ul>
+              <li><strong>入站流量</strong>:发往业务端口的连接被重定向到 Envoy 的入站监听(端口 <span class="en">15006</span>),Envoy 检查、记录后再转交业务。</li>
+              <li><strong>出站流量</strong>:业务发出的连接被重定向到 Envoy 的出站监听(端口 <span class="en">15001</span>),Envoy 选路、加密后再真正发出。</li>
+              <li><strong>防死循环</strong>:Envoy 自己发出的流量用它的专属用户 ID(<span class="en">1337</span>)豁免重定向,否则它会把自己的流量再劫持给自己,无限套娃。</li>
+            </ul>
+            <div class="diagram">
+              <svg viewBox="0 0 760 240" role="img" aria-label="Pod 内 iptables 流量劫持示意图">
+                <rect x="150" y="14" width="460" height="212" rx="14" class="podbox"/>
+                <text x="166" y="38" class="svg-label svg-s" font-size="12">同一个 Pod(共享网络)</text>
+                <rect x="180" y="70" width="150" height="110" rx="10" class="podbox-app" stroke-width="1.6"/>
+                <text x="255" y="116" text-anchor="middle" class="svg-label svg-t" font-size="14">业务 App</text>
+                <text x="255" y="138" text-anchor="middle" class="svg-label svg-s" font-size="11.5">监听 :8080</text>
+                <text x="255" y="156" text-anchor="middle" class="svg-label svg-s" font-size="11.5">对外发请求</text>
+                <rect x="430" y="52" width="150" height="62" rx="10" class="podbox-sc" stroke-width="1.6"/>
+                <text x="505" y="79" text-anchor="middle" class="svg-label svg-t" font-size="13">Envoy 入站 :15006</text>
+                <text x="505" y="98" text-anchor="middle" class="svg-label svg-s" font-size="11">校验 · 限流 · 记录</text>
+                <rect x="430" y="136" width="150" height="62" rx="10" class="podbox-sc" stroke-width="1.6"/>
+                <text x="505" y="163" text-anchor="middle" class="svg-label svg-t" font-size="13">Envoy 出站 :15001</text>
+                <text x="505" y="182" text-anchor="middle" class="svg-label svg-s" font-size="11">选路 · 加密 · 重试</text>
+                <text x="60" y="90" class="svg-label svg-t" font-size="12.5">外部请求</text>
+                <path d="M60 104 L505 104 L505 114" class="flowline-accent" marker-end="url(#arr5)"/>
+                <path d="M430 167 L340 150" class="flowline-accent" marker-end="url(#arr5)"/>
+                <text x="352" y="196" class="svg-label svg-s" font-size="11.5">iptables 把出站连接改道给 Envoy</text>
+                <path d="M480 114 L330 118" class="flowline" stroke-dasharray="5 4" marker-end="url(#arr5g)"/>
+                <text x="352" y="66" class="svg-label svg-s" font-size="11.5">检查完转交 App</text>
+                <defs>
+                  <marker id="arr5" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto"><path d="M0 0 L7 3 L0 6 Z" fill="var(--accent)"/></marker>
+                  <marker id="arr5g" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto"><path d="M0 0 L7 3 L0 6 Z" fill="var(--muted)"/></marker>
+                </defs>
+              </svg>
+              <div class="cap">业务容器对此一无所知:它以为自己在直连,其实每句话都过了 Envoy 的手</div>
+            </div>
+            <p>补充两个细节:其一,新版 Istio 也可以让 Envoy 以 K8s 原生 Sidecar(重启策略为 Always 的 init 容器)方式运行,保证它比业务先启动、后退出;其二,还有一种 <strong>Ambient(环境)模式</strong>不用 sidecar,改用每节点一个 ztunnel 代理——是更新的演进方向,初学阶段先掌握经典 sidecar 模式即可。</p>
+
+            <div class="quiz" data-quiz>
+              <div class="q-ttl">本章小测</div>
+              <p class="q">1. Envoy 容器被加进 Pod,靠的是?</p>
+              <div class="opts">
+                <button class="opt" data-wrong>你在 Deployment 里手动写了两个容器</button>
+                <button class="opt" data-right>准入 Webhook 在 Pod 创建前修改了 Pod 定义(给命名空间打 istio-injection 标签开启)</button>
+                <button class="opt" data-wrong>Docker 镜像里预置了 Envoy</button>
+              </div>
+              <div class="explain">注入对业务完全透明,这也是为什么老应用不用改镜像就能进网格。</div>
+              <p class="q">2. 业务容器发出的请求为什么一定会经过 Envoy?</p>
+              <div class="opts">
+                <button class="opt" data-wrong>业务代码里配置了代理地址</button>
+                <button class="opt" data-wrong>Envoy 监听了业务的端口</button>
+                <button class="opt" data-right>istio-init 初始化容器写了 iptables 规则,把进出流量重定向到 Envoy 的 15006/15001 端口</button>
+              </div>
+              <div class="explain">iptables 在网络层改道,不依赖业务配合;Envoy 自身流量靠 uid 1337 豁免,避免劫持自己造成死循环。</div>
+            </div>
+          </section>
+
+          <!-- ============ 第6章 ============ -->
+          <section class="chapter" id="ch6">
+            <div class="ch-head">
+              <div class="ch-num">06</div>
+              <div>
+                <h2>流量管理:网格最常用的本事</h2>
+                <div class="sub">三个核心资源:Gateway、VirtualService、DestinationRule</div>
+              </div>
+            </div>
+
+            <h3>6.1 先认清三个资源各管一段</h3>
+            <div class="tblwrap"><table>
+              <tr><th style="width:190px">资源</th><th>管什么</th><th style="width:210px">生活类比</th></tr>
+              <tr><td>Gateway</td><td>集群<strong>入口</strong>:监听哪个域名、哪个端口,用什么协议。对外流量的门面。</td><td>大楼的大门与门牌</td></tr>
+              <tr><td>VirtualService</td><td><strong>路由规则</strong>:请求匹配什么条件(路径、请求头),就发给哪个服务的哪个版本。可以写比例、超时、重试、故障注入。</td><td>总台的分诊台</td></tr>
+              <tr><td>DestinationRule</td><td><strong>到达策略</strong>:给目标服务定义版本分组(subset,如 v1/v2),以及负载均衡算法、连接池、熔断(异常点驱逐)参数。</td><td>科室内部的排班规则</td></tr>
+            </table></div>
+            <p>心智模型:<strong>VirtualService 决定「去哪」,DestinationRule 决定「到了之后怎么分」</strong>。版本标签来自 Pod 的 <code>version</code> 标签——DestinationRule 用它把同一个 Service 的 Pod 分成 v1、v2 等子集,VirtualService 才能按比例往子集发流量。</p>
+
+            <h3>6.2 金丝雀发布:先给 10% 的人用新版</h3>
+            <p>这是网格最经典的用法。新版本 v2 上线,先切 10% 流量过去观察指标,没问题再逐步放大到 50%、100%;出问题把比例调回 0,秒级回滚。下面就是它的配置——两段 YAML,注意它们如何分工:</p>
+            <pre><span class="c"># DestinationRule:先把 reviews 服务的 Pod 按 version 标签分成两组</span>
+<span class="k">apiVersion</span>: networking.istio.io/v1
+<span class="k">kind</span>: DestinationRule
+<span class="k">metadata</span>:
+  <span class="k">name</span>: reviews
+<span class="k">spec</span>:
+  <span class="k">host</span>: reviews          <span class="c"># 目标 Service 的名字</span>
+  <span class="k">subsets</span>:
+  - <span class="k">name</span>: v1
+    <span class="k">labels</span>: { <span class="k">version</span>: v1 }
+  - <span class="k">name</span>: v2
+    <span class="k">labels</span>: { <span class="k">version</span>: v2 }</pre>
+            <pre><span class="c"># VirtualService:再决定流量比例 —— 90% 去 v1,10% 去 v2</span>
+<span class="k">apiVersion</span>: networking.istio.io/v1
+<span class="k">kind</span>: VirtualService
+<span class="k">metadata</span>:
+  <span class="k">name</span>: reviews
+<span class="k">spec</span>:
+  <span class="k">hosts</span>: [reviews]
+  <span class="k">http</span>:
+  - <span class="k">route</span>:
+    - <span class="k">destination</span>: { <span class="k">host</span>: reviews, <span class="k">subset</span>: v1 }
+      <span class="k">weight</span>: <span class="s">90</span>
+    - <span class="k">destination</span>: { <span class="k">host</span>: reviews, <span class="k">subset</span>: v2 }
+      <span class="k">weight</span>: <span class="s">10</span></pre>
+
+            <div class="demo" id="canaryDemo">
+              <div class="demo-head"><span class="badge">动手试试</span><h4>金丝雀流量分配模拟器</h4></div>
+              <p class="hint">拖动滑杆改变 v2 的权重(weight),观察请求流如何按比例分流——这正是上面那份 VirtualService 在 Envoy 里的实际效果。</p>
+              <div class="slider-row">
+                <label for="canaryRange">v2 权重</label>
+                <input type="range" id="canaryRange" min="0" max="100" value="10" step="5" />
+                <span class="val" id="canaryVal">10%</span>
+              </div>
+              <div class="stream" id="canaryStream" aria-hidden="true">
+                <span class="lane-label" style="top:8px">→ v1 (稳定版)</span>
+                <span class="lane-label" style="bottom:8px">→ v2 (新版)</span>
+              </div>
+              <div class="legend">
+                <span><i style="background:var(--pod)"></i>v1 实际收到:<b class="mono" id="canaryC1">0</b></span>
+                <span><i style="background:var(--sidecar)"></i>v2 实际收到:<b class="mono" id="canaryC2">0</b></span>
+                <span>总请求:<b class="mono" id="canaryTotal">0</b></span>
+              </div>
+              <div class="controls">
+                <button class="btn" id="canaryGo">发出 60 个请求</button>
+                <button class="btn ghost" id="canaryClear">清零</button>
+              </div>
+              <p class="hint" style="margin-bottom:0">思考:线上真实灰度时,你会盯着哪个指标决定要不要继续放大 v2?(答案在第 8 章:错误率与延迟。)</p>
+            </div>
+
+            <h3>6.3 不止比例:条件路由</h3>
+            <p>VirtualService 的匹配条件可以细到请求头。经典用法:让<strong>内测用户</strong>(带特定 Cookie/Header)全量走新版,普通用户不受影响:</p>
+            <pre><span class="k">http</span>:
+- <span class="k">match</span>:
+  - <span class="k">headers</span>:
+      <span class="k">x-beta-user</span>: { <span class="k">exact</span>: <span class="s">"true"</span> }   <span class="c"># 命中这条规则的请求…</span>
+  <span class="k">route</span>:
+  - <span class="k">destination</span>: { <span class="k">host</span>: reviews, <span class="k">subset</span>: v2 }   <span class="c"># …全部去 v2</span>
+- <span class="k">route</span>:                                <span class="c"># 其余请求走默认比例</span>
+  - <span class="k">destination</span>: { <span class="k">host</span>: reviews, <span class="k">subset</span>: v1 }
+    <span class="k">weight</span>: <span class="s">100</span></pre>
+
+            <h3>6.4 韧性三件套:超时、重试、熔断</h3>
+            <p>回到第 1 章的问题清单——这三项现在全部变成配置,不写一行代码:</p>
+            <div class="tblwrap"><table>
+              <tr><th style="width:110px">能力</th><th>配置位置</th><th>作用</th></tr>
+              <tr><td>超时</td><td>VirtualService 的 <code>timeout</code></td><td>等太久就放弃,避免请求无限挂起占资源。</td></tr>
+              <tr><td>重试</td><td>VirtualService 的 <code>retries</code></td><td>失败自动再试几次,可限定「只对 5xx 重试」。注意:非幂等请求(如下单)乱重试会重复执行,要谨慎。</td></tr>
+              <tr><td>熔断</td><td>DestinationRule 的 <code>outlierDetection</code></td><td>某个 Pod 连续报错就把它临时踢出负载均衡池(驱逐),过一会儿再放回试试。Envoy 里这叫「异常点驱逐」,效果等同熔断。</td></tr>
+            </table></div>
+            <pre><span class="c"># VirtualService 里加超时与重试</span>
+<span class="k">http</span>:
+- <span class="k">route</span>:
+  - <span class="k">destination</span>: { <span class="k">host</span>: reviews, <span class="k">subset</span>: v1 }
+  <span class="k">timeout</span>: <span class="s">2s</span>
+  <span class="k">retries</span>:
+    <span class="k">attempts</span>: <span class="s">3</span>
+    <span class="k">perTryTimeout</span>: <span class="s">0.7s</span>
+    <span class="k">retryOn</span>: <span class="s">5xx</span></pre>
+
+            <div class="demo" id="breakerDemo">
+              <div class="demo-head"><span class="badge">动手试试</span><h4>熔断模拟器:看着断路器跳闸</h4></div>
+              <p class="hint">假设支付服务开始抽风:一部分请求会失败。连续失败达到 5 次,Envoy 的异常驱逐触发——该实例被暂时踢出,请求<strong>立即失败(fail-fast)</strong>而不是傻等,过几秒再放行试探。把故障率拉高,反复发请求试试。</p>
+              <div class="slider-row">
+                <label for="failRange">后端故障率</label>
+                <input type="range" id="failRange" min="0" max="100" value="60" step="5" />
+                <span class="val" id="failVal">60%</span>
+              </div>
+              <div class="controls">
+                <button class="btn" id="breakerGo">连续发送 10 个请求</button>
+                <button class="btn ghost" id="breakerReset">重置模拟器</button>
+                <span>断路器状态:<span class="breaker-state" id="breakerState" style="color:var(--ok)">CLOSED(正常放行)</span></span>
+              </div>
+              <div class="statgrid">
+                <div class="stat"><div class="v" id="brOk" style="color:var(--ok)">0</div><div class="l">成功</div></div>
+                <div class="stat"><div class="v" id="brErr" style="color:var(--bad)">0</div><div class="l">失败(打到后端)</div></div>
+                <div class="stat"><div class="v" id="brFast" style="color:var(--amber)">0</div><div class="l">快速失败(被熔断拦下)</div></div>
+              </div>
+              <div class="logbox" id="breakerLog">等待发送请求…</div>
+              <p class="hint" style="margin-bottom:0">要点:熔断拦下的请求「快速失败」看起来也是失败,但它保护了调用方不被拖垮——等超时和立刻报错,对系统资源的消耗完全不同。</p>
+            </div>
+
+            <h3>6.5 故障注入:主动搞破坏来练兵</h3>
+            <p>VirtualService 还能<strong>故意</strong>给一部分请求加延迟或直接返回错误,用来验证「下游挂了/慢了,我的服务扛不扛得住」——这是混沌工程的入门用法:</p>
+            <pre><span class="k">fault</span>:
+  <span class="k">delay</span>: { <span class="k">percentage</span>: { <span class="k">value</span>: <span class="s">50</span> }, <span class="k">fixedDelay</span>: <span class="s">5s</span> }  <span class="c"># 一半请求被人为延迟 5 秒</span>
+  <span class="k">abort</span>: { <span class="k">percentage</span>: { <span class="k">value</span>: <span class="s">10</span> }, <span class="k">httpStatus</span>: <span class="s">500</span> } <span class="c"># 一成请求直接报 500</span></pre>
+
+            <div class="quiz" data-quiz>
+              <div class="q-ttl">本章小测</div>
+              <p class="q">1. 90/10 灰度发布,两个资源如何分工?</p>
+              <div class="opts">
+                <button class="opt" data-wrong>Gateway 写比例,Service 写版本</button>
+                <button class="opt" data-right>DestinationRule 按标签定义 v1/v2 子集,VirtualService 写 90/10 的权重</button>
+                <button class="opt" data-wrong>只改 Deployment 的副本数即可</button>
+              </div>
+              <div class="explain">没有 DestinationRule 的 subset 定义,VirtualService 就无从引用 v1/v2——这是新手最常漏的一步。</div>
+              <p class="q">2. 熔断(异常驱逐)的收益是?</p>
+              <div class="opts">
+                <button class="opt" data-wrong>让失败的请求自动变成功</button>
+                <button class="opt" data-right>把持续报错的实例临时踢出,请求快速失败,避免调用方被超时拖垮、故障扩散</button>
+                <button class="opt" data-wrong>自动扩容出新的健康实例</button>
+              </div>
+              <div class="explain">熔断保护的是调用方和整个系统,而不是把失败变成功;扩容与补实例是 K8s/Deployment 的职责。</div>
+            </div>
+          </section>
+
+          <!-- ============ 第7章 ============ -->
+          <section class="chapter" id="ch7">
+            <div class="ch-head">
+              <div class="ch-num">07</div>
+              <div>
+                <h2>安全:先证明「我是我」,再谈「能不能进」</h2>
+                <div class="sub">mTLS 加密与身份 + AuthorizationPolicy 授权</div>
+              </div>
+            </div>
+
+            <h3>7.1 问题:内网不是保险箱</h3>
+            <p>传统假设是「集群内网可信」,但只要一个容器被攻破,攻击者就能在内网里窃听所有明文流量,还能伪装成任意服务发请求。Istio 的安全目标是<strong>零信任</strong>:每一次调用,双方都要出示身份,并且全程加密——不因为「在内网」就免检。</p>
+
+            <h3>7.2 mTLS:双向 TLS</h3>
+            <p>普通 HTTPS 是单向的:客户端验证服务器证书,服务器不问客户端是谁。<strong>mTLS(Mutual TLS,双向 TLS)</strong>要求<strong>双方互验</strong>:连接建立时彼此交换证书,确认对方身份,然后用协商出的密钥加密全部内容。在网格里,这件事由两个 Envoy 自动完成:</p>
+            <div class="steps">
+              <div class="step"><div><p class="st-t">每个工作负载一张「身份证」</p><p>Pod 启动时,Envoy 向 istiod 申请证书。istiod 内置的 CA 用 Pod 的 ServiceAccount 签发一张 X.509 证书,身份遵循 SPIFFE 规范,形如 <span class="en">spiffe://cluster.local/ns/default/sa/orders</span>——身份绑定的是「哪个命名空间的哪个服务账号」,不是易变的 IP。</p></div></div>
+              <div class="step"><div><p class="st-t">证书短期有效、自动轮换</p><p>证书默认有效期很短(小时级),到期前 Envoy 自动续签。没有长期密钥躺在磁盘上,泄露的窗口很小。</p></div></div>
+              <div class="step"><div><p class="st-t">握手时互验,通道全程加密</p><p>两个 Envoy 建立连接时交换并验证证书,任何一方验不过就断开;之后的应用数据全部走加密通道,业务容器依然发普通 HTTP,加解密在 Envoy 层完成。</p></div></div>
+            </div>
+
+            <div class="demo" id="mtlsDemo">
+              <div class="demo-head"><span class="badge">动手试试</span><h4>窃听者视角:明文 vs mTLS</h4></div>
+              <p class="hint">假设攻击者已经能抓到服务之间的网络包。切换模式,看看他能读到什么。</p>
+              <div class="switch-row">
+                <button id="mtlsPlain" class="on">无 Istio:明文 HTTP</button>
+                <button id="mtlsEnc">Istio mTLS(STRICT)</button>
+              </div>
+              <div class="packet plain" id="packetBox">POST /payments/charge HTTP/1.1
+Host: payments
+Authorization: Bearer eyJhbGciOiJIUzI1NiIs…
+Body: {"card": "6222 0202 0000 1234", "amount": 199.00}</div>
+              <p class="hint" id="packetNote" style="margin-bottom:0">👁 窃听者视角:卡号、金额、令牌全部一览无余,还能照着这个格式伪造请求。</p>
+            </div>
+
+            <h3>7.3 严格程度可以调:PeerAuthentication</h3>
+            <div class="tblwrap"><table>
+              <tr><th style="width:150px">模式</th><th>含义</th><th style="width:190px">什么时候用</th></tr>
+              <tr><td><code>STRICT</code></td><td>只接受 mTLS 流量,明文一律拒绝</td><td>全员进网格后的目标状态</td></tr>
+              <tr><td><code>PERMISSIVE</code></td><td>mTLS 与明文都接受(默认值)</td><td>迁移过渡期:网格外服务还能调进来</td></tr>
+              <tr><td><code>DISABLE</code></td><td>关掉 mTLS,只用明文</td><td>极少数特殊场景</td></tr>
+            </table></div>
+            <pre><span class="c"># 让 payments 命名空间只接受加密流量</span>
+<span class="k">apiVersion</span>: security.istio.io/v1
+<span class="k">kind</span>: PeerAuthentication
+<span class="k">metadata</span>: { <span class="k">name</span>: default, <span class="k">namespace</span>: payments }
+<span class="k">spec</span>:
+  <span class="k">mtls</span>: { <span class="k">mode</span>: <span class="s">STRICT</span> }</pre>
+
+            <h3>7.4 授权:验完身份,再定权限</h3>
+            <p>mTLS 只回答「你是谁」,回答不了「你配不配调这个接口」。<strong>AuthorizationPolicy</strong> 补上后半句:基于对方身份(服务账号)、请求路径、方法来放行或拒绝。例如:只允许订单服务调用支付服务的扣款接口:</p>
+            <pre><span class="k">apiVersion</span>: security.istio.io/v1
+<span class="k">kind</span>: AuthorizationPolicy
+<span class="k">metadata</span>: { <span class="k">name</span>: allow-orders-charge, <span class="k">namespace</span>: payments }
+<span class="k">spec</span>:
+  <span class="k">selector</span>: { <span class="k">matchLabels</span>: { <span class="k">app</span>: payments } }
+  <span class="k">action</span>: ALLOW
+  <span class="k">rules</span>:
+  - <span class="k">from</span>:
+    - <span class="k">source</span>: { <span class="k">principals</span>: [<span class="s">"cluster.local/ns/default/sa/orders"</span>] }  <span class="c"># 只有订单服务</span>
+    <span class="k">to</span>:
+    - <span class="k">operation</span>: { <span class="k">methods</span>: [<span class="s">"POST"</span>], <span class="k">paths</span>: [<span class="s">"/charge"</span>] }          <span class="c"># 且只能干这一件事</span></pre>
+            <div class="callout key">
+              <div class="ttl">串起来记</div>
+              <p><strong>认证 = 证明身份</strong>(mTLS + 证书);<strong>授权 = 分配权限</strong>(AuthorizationPolicy)。先有可信身份,授权策略才有依据——这是 Istio 安全模型的两段式结构。</p>
+            </div>
+
+            <div class="quiz" data-quiz>
+              <div class="q-ttl">本章小测</div>
+              <p class="q">1. mTLS 里的「双向」指的是?</p>
+              <div class="opts">
+                <button class="opt" data-wrong>请求和响应都加密</button>
+                <button class="opt" data-right>连接双方互相验证对方的证书,确认彼此身份后再加密通信</button>
+                <button class="opt" data-wrong>数据要备份两份</button>
+              </div>
+              <div class="explain">普通 TLS 只验服务器;mTLS 连客户端也要出示证书。网格里两端都是 Envoy,握手、验身、加解密全自动。</div>
+              <p class="q">2. 新集群刚引入 Istio,还没全量进网格时,PeerAuthentication 选哪种更稳妥?</p>
+              <div class="opts">
+                <button class="opt" data-right>PERMISSIVE:明文与 mTLS 都收,等全员进网格后再切 STRICT</button>
+                <button class="opt" data-wrong>STRICT:一步到位,不留余地</button>
+                <button class="opt" data-wrong>DISABLE:先把安全关了再说</button>
+              </div>
+              <div class="explain">PERMISSIVE 是默认值,正是为迁移期设计的;直接 STRICT 会把还没进网格的调用方全部拒之门外。</div>
+            </div>
+          </section>
+
+          <!-- ============ 第8章 ============ -->
+          <section class="chapter" id="ch8">
+            <div class="ch-head">
+              <div class="ch-num">08</div>
+              <div>
+                <h2>可观测性:网格自带「全程录像」</h2>
+                <div class="sub">指标、追踪、日志 —— Envoy 在转发时顺手就记了</div>
+              </div>
+            </div>
+            <p>第 1 章的最后一个问题是「一次请求慢了,不知道慢在哪」。在网格里,请求反正要过每一跳的 Envoy,Envoy 干脆在转发时把每一跳都记录下来——<strong>业务代码不用做任何事</strong>,三类观测数据自动产生:</p>
+
+            <h3>8.1 指标(Metrics):先看全局健康</h3>
+            <p>Envoy 为每个请求上报结构化指标:谁调谁、状态码、耗时、流量大小。它们被 <strong>Prometheus</strong> 采集,在 <strong>Grafana</strong> 里画成官方仪表盘。排障时最有用的四个数(业界称黄金信号/RED):</p>
+            <div class="kv">
+              <div class="item"><div class="t">请求量 Rate</div><p>每个服务、每个接口每秒多少请求——流量突增突降第一时间可见。</p></div>
+              <div class="item"><div class="t">错误率 Errors</div><p>5xx 占比。灰度放量时盯着它:v2 错误率一抬头,立刻把权重调回去。</p></div>
+              <div class="item"><div class="t">延迟 Duration</div><p>看 P50/P95/P99 分位,而不是平均值——平均会把长尾的痛苦抹平。</p></div>
+              <div class="item"><div class="t">饱和度 Saturation</div><p>连接池排队、线程等待等「快撑不住」的信号,配合 DestinationRule 的连接池上限看。</p></div>
+            </div>
+            <p>可视化拓扑工具 <strong>Kiali</strong> 能基于这些指标画出实时服务关系图:哪个服务在调哪个、流量多大、哪里飘红——第一次打开 Kiali,通常是初学者「看见网格」的高光时刻。</p>
+
+            <h3>8.2 追踪(Tracing):给一次请求装定位器</h3>
+            <p>指标告诉你「支付服务整体变慢了」,追踪能精确到「<strong>这一次</strong>下单请求,在库存服务上耗了 800ms」。原理:请求进入网格时生成一个 <span class="en">trace ID</span>,每一跳都带着它,并把「我在这一跳花了多久」记成一个 span,最后拼成一条完整时间线,交给 <strong>Jaeger</strong> 这类工具展示成火焰图式的瀑布图。</p>
+            <div class="diagram">
+              <svg viewBox="0 0 760 190" role="img" aria-label="分布式追踪瀑布图示意">
+                <text x="10" y="26" class="svg-label svg-t" font-size="12.5">网关</text>
+                <rect x="100" y="14" width="620" height="16" rx="4" fill="var(--pod)" opacity=".85"/>
+                <text x="10" y="66" class="svg-label svg-t" font-size="12.5">订单</text>
+                <rect x="130" y="54" width="430" height="16" rx="4" fill="var(--pod)" opacity=".65"/>
+                <text x="10" y="106" class="svg-label svg-t" font-size="12.5">支付</text>
+                <rect x="170" y="94" width="180" height="16" rx="4" fill="var(--pod)" opacity=".5"/>
+                <text x="10" y="146" class="svg-label svg-t" font-size="12.5">库存</text>
+                <rect x="380" y="134" width="170" height="16" rx="4" fill="var(--bad)" opacity=".8"/>
+                <text x="565" y="148" class="svg-label svg-t" font-size="12" fill="var(--bad)">← 慢在这里!</text>
+                <text x="100" y="182" class="svg-label svg-s" font-size="11.5">0ms</text>
+                <text x="690" y="182" class="svg-label svg-s" font-size="11.5">总耗时 ≈ 950ms</text>
+              </svg>
+              <div class="cap">一次请求的跨度瀑布图:每一行是一跳,长度是耗时——慢的环节自己会跳出来</div>
+            </div>
+            <div class="callout warn">
+              <div class="ttl">一个必须知道的坑</div>
+              <p>Envoy 能自动生成每一跳的 span,但「把上下游 span 串成同一条 trace」需要业务代码<strong>把追踪请求头(如 <span class="en">traceparent</span>、<span class="en">x-b3-*</span>)从入站请求透传到出站请求</span>。这是网格少有的需要业务配合一点点的地方——通常框架或一行中间件就能搞定,但不做,追踪就是断的。</p>
+            </div>
+
+            <h3>8.3 日志(Logs):Envoy 的访问日志</h3>
+            <p>每个请求经过 Envoy 都会留一行结构化访问日志(源/目标、状态码、耗时、响应标记)。它不新鲜,但胜在统一格式、全量覆盖,出问题时和指标、追踪三方对证。</p>
+            <div class="callout key">
+              <div class="ttl">三者的分工</div>
+              <p><strong>指标</strong>回答「有没有病」(面);<strong>追踪</strong>回答「病在哪一跳」(线);<strong>日志</strong>回答「当时到底发生了什么」(点)。Istio 的价值在于:三者的原料都由 Envoy 在数据面自动生产,你只负责接上 Prometheus / Jaeger / 日志系统去消费。</p>
+            </div>
+
+            <div class="quiz" data-quiz>
+              <div class="q-ttl">本章小测</div>
+              <p class="q">1. 为什么网格里的业务服务「什么都不做」也有请求级指标?</p>
+              <div class="opts">
+                <button class="opt" data-wrong>K8s 会自动统计每个接口的调用</button>
+                <button class="opt" data-right>所有请求都经过 Envoy,Envoy 在转发时统一记录并上报指标</button>
+                <button class="opt" data-wrong>istiod 会去扫描业务日志</button>
+              </div>
+              <div class="explain">这正是 Sidecar 架构的复利:治理点即观测点,代理在的地方,数据就在。</div>
+              <p class="q">2. 链路追踪断成几截、最常见的原因是?</p>
+              <div class="opts">
+                <button class="opt" data-wrong>Jaeger 没装好</button>
+                <button class="opt" data-wrong>请求的延迟太低</button>
+                <button class="opt" data-right>业务代码没有把追踪请求头从入站透传到出站请求</button>
+              </div>
+              <div class="explain">Envoy 各自生成 span,但串联靠 trace 上下文的透传;多数框架加一个中间件即可,漏了它,Jaeger 里就是一地孤立的 span。</div>
+            </div>
+          </section>
+
+          <!-- ============ 第9章 ============ -->
+          <section class="chapter" id="ch9">
+            <div class="ch-head">
+              <div class="ch-num">09</div>
+              <div>
+                <h2>上手实战:装上它,跑一个完整例子</h2>
+                <div class="sub">命令速查 + 官方 Bookinfo 示例的练习路线</div>
+              </div>
+            </div>
+
+            <h3>9.1 安装(本地学习环境)</h3>
+            <p>先有个能用的 K8s 集群(kind、minikube 或云厂商托管集群均可),然后三步:</p>
+            <pre><span class="c"># 1) 下载 istioctl 并安装 Istio(demo 配置自带全套学习组件)</span>
+istioctl install --set profile=demo -y
+
+<span class="c"># 2) 给要进网格的命名空间打开自动注入</span>
+kubectl label namespace default istio-injection=enabled
+
+<span class="c"># 3) 确认控制面就绪</span>
+kubectl get pods -n istio-system
+<span class="c"># istiod 与 istio-ingressgateway 应为 Running</span></pre>
+
+            <h3>9.2 用 Bookinfo 把全书知识点串一遍</h3>
+            <p>Istio 官方示例 <strong>Bookinfo</strong> 是一个微型书评站(productpage → details / ratings / reviews,其中 reviews 有 v1/v2/v3 三个版本),天生就是为练流量管理准备的。按这个顺序练,正好复习全书:</p>
+            <div class="steps">
+              <div class="step"><div><p class="st-t">部署并注入</p><p>应用 <span class="en">samples/bookinfo</span> 的 YAML,确认每个 Pod 是 <span class="en">2/2</span>(第 5 章:注入成功)。</p></div></div>
+              <div class="step"><div><p class="st-t">开门迎客</p><p>给 productpage 配 Gateway + VirtualService,从浏览器访问书评页(第 6 章:入口与路由)。</p></div></div>
+              <div class="step"><div><p class="st-t">全量切 v1 → 按人分流</p><p>先把 reviews 全切到 v1;再写匹配规则,让测试用户 <span class="en">jason</span> 登录后看到 v2(带星级评分的版本)(第 6 章:条件路由)。</p></div></div>
+              <div class="step"><div><p class="st-t">比例灰度与故障注入</p><p>把 reviews 改成 v1/v3 各 50%,反复刷新看页面变化;再给 ratings 注入 5 秒延迟,观察超时现象(第 6 章:权重与故障注入)。</p></div></div>
+              <div class="step"><div><p class="st-t">打开 Kiali 看拓扑</p><p><span class="en">istioctl dashboard kiali</span>,对着实时流量图回看每一步配置的效果(第 8 章:可观测性)。</p></div></div>
+              <div class="step"><div><p class="st-t">收紧安全</p><p>给命名空间开启 mTLS STRICT,用 <span class="en">istioctl authn tls-check</span> 验证;再写一条 AuthorizationPolicy 拒绝非 productpage 对 reviews 的调用(第 7 章)。</p></div></div>
+            </div>
+
+            <h3>9.3 常用命令速查</h3>
+            <div class="tblwrap"><table>
+              <tr><th style="width:300px">命令</th><th>干什么</th></tr>
+              <tr><td><code>istioctl install --set profile=demo</code></td><td>安装/升级 Istio(demo 画像含学习用的全套组件)</td></tr>
+              <tr><td><code>istioctl analyze</code></td><td>静态检查你的 Istio 配置有没有写错、漏配,新手排错第一命令</td></tr>
+              <tr><td><code>istioctl proxy-status</code></td><td>看每个 Envoy 与 istiod 的配置同步状态(SYNCED 才算下发成功)</td></tr>
+              <tr><td><code>istioctl proxy-config routes &lt;pod&gt;</code></td><td>扒开某个 Envoy 实际生效的路由,验证 VirtualService 是否如愿</td></tr>
+              <tr><td><code>kubectl get vs,dr,gw,pa,authz -A</code></td><td>盘点全集群的 VirtualService / DestinationRule / Gateway / PeerAuthentication / AuthorizationPolicy</td></tr>
+              <tr><td><code>istioctl dashboard kiali</code></td><td>打开 Kiali 拓扑控制台(也可换 prometheus / jaeger / grafana)</td></tr>
+            </table></div>
+
+            <h3>9.4 核心资源速查卡</h3>
+            <div class="tblwrap"><table>
+              <tr><th style="width:190px">资源(Kind)</th><th style="width:150px">所属领域</th><th>一句话职责</th></tr>
+              <tr><td>Gateway</td><td>流量</td><td>定义集群入口的域名、端口与协议</td></tr>
+              <tr><td>VirtualService</td><td>流量</td><td>路由规则:匹配条件 → 目标与权重,含超时/重试/故障注入</td></tr>
+              <tr><td>DestinationRule</td><td>流量</td><td>目标的版本子集、负载均衡、连接池与熔断(异常驱逐)</td></tr>
+              <tr><td>ServiceEntry</td><td>流量</td><td>把集群外服务登记进网格的「通讯录」,让外部访问也可被治理</td></tr>
+              <tr><td>PeerAuthentication</td><td>安全</td><td>规定一片范围内的 mTLS 模式:STRICT / PERMISSIVE / DISABLE</td></tr>
+              <tr><td>AuthorizationPolicy</td><td>安全</td><td>基于身份与请求的访问控制:谁、能对谁、做什么</td></tr>
+              <tr><td>RequestAuthentication</td><td>安全</td><td>校验终端用户的 JWT,管「集群外的人」的身份</td></tr>
+            </table></div>
+
+            <h3>9.5 什么时候不该上 Istio</h3>
+            <p>学完要会判断,而不是逢系统就套。以下信号说明网格的收益可能抵不过成本(每跳多一层代理的延迟、多养一套控制面的运维负担):</p>
+            <ul>
+              <li>服务总数个位数,团队也小——K8s 原生能力 + 简单 SDK 足够。</li>
+              <li>没有灰度、mTLS、多语言治理等<strong>具体</strong>诉求,只是「听说很火」。</li>
+              <li>团队没人能读懂 Envoy 配置排障——网格出问题时,排障门槛比收益先到。</li>
+            </ul>
+            <div class="callout good">
+              <div class="ttl">下一步学什么</div>
+              <p>走通 Bookinfo 后,建议顺序:① 把每个核心资源都亲手改一遍并观察 <span class="en">proxy-config</span>;② 读 Envoy 官方文档的概念部分(listener / cluster / route);③ 了解 Ambient 模式与 Gateway API(K8s 官方新一代入口标准,Istio 已支持);④ 在测试环境做一次完整的「灰度 → 出错 → 回滚」演练。</p>
+            </div>
+          </section>
+
+          <!-- ============ 综合自测 ============ -->
+          <section class="chapter" id="exam">
+            <div class="ch-head">
+              <div class="ch-num">✓</div>
+              <div>
+                <h2>综合自测:六道题检验主线</h2>
+                <div class="sub">全部答对,说明你已经建立起 Istio 的完整心智模型</div>
+              </div>
+            </div>
+            <div class="quiz" data-quiz id="finalQuiz">
+              <div class="q-ttl">综合自测</div>
+              <p class="q">1. 用一句话概括 Istio 的解题思路,最贴切的是?</p>
+              <div class="opts">
+                <button class="opt" data-wrong>写一个更强的 K8s 调度器</button>
+                <button class="opt" data-right>把通信治理从业务代码中剥离,交给每个服务旁的代理执行、由控制面统一指挥</button>
+                <button class="opt" data-wrong>把所有微服务合并回单体</button>
+              </div>
+              <div class="explain">「代理执行 + 控制面指挥」就是服务网格的全部骨架,Istio 是它的代表实现。</div>
+              <p class="q">2. 线上某 Pod 的流量行为不对,排查顺序最合理的是?</p>
+              <div class="opts">
+                <button class="opt" data-wrong>先重启 istiod</button>
+                <button class="opt" data-wrong>先把 sidecar 卸载掉</button>
+                <button class="opt" data-right>先 istioctl analyze 查配置、proxy-status 看同步,再用 proxy-config 看该 Envoy 实际生效的配置</button>
+              </div>
+              <div class="explain">流量行为由「你写的配置 → istiod 下发 → Envoy 生效」三段决定,按这条链逐段验,比重启任何东西都快。</div>
+              <p class="q">3. 灰度时想让「内测用户走 v2、其他人走 v1」,正确的配置是?</p>
+              <div class="opts">
+                <button class="opt" data-right>VirtualService 里写一条 match 请求头的规则指向 v2,再写一条无条件规则指向 v1</button>
+                <button class="opt" data-wrong>DestinationRule 里给 v2 subset 加大权重</button>
+                <button class="opt" data-wrong>给 v2 的 Pod 多打几个标签</button>
+              </div>
+              <div class="explain">条件匹配是 VirtualService 的活;权重只解决比例问题,分不清「谁是谁」。</div>
+              <p class="q">4. 关于控制面故障,正确的是?</p>
+              <div class="opts">
+                <button class="opt" data-wrong>istiod 一挂,全集群流量立即中断</button>
+                <button class="opt" data-right>已有流量按 Envoy 手中的旧配置继续;但新配置下发不了、新 Pod 拿不到证书</button>
+                <button class="opt" data-wrong>Envoy 会自动接管 istiod 的工作</button>
+              </div>
+              <div class="explain">数据面与控制面解耦的直接好处:控制面故障的影响被限制在「不能变」而不是「不能跑」。</div>
+              <p class="q">5. 订单服务调用库存服务总超时,最先看哪个可观测数据定位?</p>
+              <div class="opts">
+                <button class="opt" data-wrong>订单服务的 CPU 使用率</button>
+                <button class="opt" data-wrong>集群节点磁盘容量</button>
+                <button class="opt" data-right>链路追踪的跨度瀑布图 + 两端 Envoy 的延迟/错误指标</button>
+              </div>
+              <div class="explain">跨服务延迟问题先看 trace 的每一跳耗时,再用指标确认是普遍现象还是个别请求。</div>
+              <p class="q">6. 下面哪个诉求是 Istio 帮不上忙的?</p>
+              <div class="opts">
+                <button class="opt" data-wrong>服务间通信加密</button>
+                <button class="opt" data-wrong>按比例灰度发布</button>
+                <button class="opt" data-right>把挂掉的 Pod 在另一台节点上重新拉起来</button>
+              </div>
+              <div class="explain">Pod 的生灭调度是 K8s 的地盘。Istio 站在 K8s 之上管通信,不碰调度——分清边界,才不会用错工具。</div>
+              <div class="final-score" id="finalScore"></div>
+            </div>
+
+            <div class="callout key">
+              <div class="ttl">全书收束:记住这张对照表</div>
+              <p>微服务的病 → 药方:通信不可靠 → 数据面 Envoy 就近治理(重试/熔断/超时);规则要统一改 → 控制面 istiod 集中下发;身份不可信 → mTLS 证书 + 授权策略;黑盒看不见 → Envoy 顺路上报指标、追踪、日志。<strong>Istio 不是一个功能,而是这套分工本身。</strong></p>
+            </div>
+          </section>
+
+          <footer>
+            Istio 可视化学习教程 · 内容基于 Istio 官方文档与 Envoy 公开资料整理,配置示例为教学简化版,生产使用前请对照你所用版本的官方文档核对字段。版本背景:istiod 单体控制面为 Istio 1.5+ 的架构;Ambient 模式为较新的可选数据面形態。
+          </footer>
+        </div>
+      </main>
+    </div>
+
+    <script>
+      (function(){
+        "use strict";
+
+        /* ---------- scrollspy ---------- */
+        var navLinks = document.querySelectorAll("#railNav a");
+        var sections = [];
+        navLinks.forEach(function(a){
+          var id = a.getAttribute("href").slice(1);
+          var el = document.getElementById(id);
+          if(el) sections.push({a:a, el:el});
+        });
+        function spy(){
+          var y = window.scrollY + 140, cur = sections[0];
+          sections.forEach(function(s){ if(s.el.offsetTop <= y) cur = s; });
+          sections.forEach(function(s){ s.a.classList.toggle("active", s === cur); });
+        }
+        window.addEventListener("scroll", spy, {passive:true});
+        spy();
+
+        var mobileNav = document.getElementById("mobileNav");
+        mobileNav.addEventListener("change", function(){
+          var t = document.querySelector(mobileNav.value);
+          if(t) t.scrollIntoView({behavior:"smooth"});
+        });
+
+        /* ---------- quizzes ---------- */
+        document.querySelectorAll("[data-quiz]").forEach(function(quiz){
+          var qs = quiz.querySelectorAll(".q");
+          var answered = 0, correct = 0, total = qs.length;
+          quiz.querySelectorAll(".opt").forEach(function(btn){
+            btn.addEventListener("click", function(){
+              var group = btn.parentElement;
+              if(group.dataset.done) return;
+              group.dataset.done = "1";
+              var isRight = btn.hasAttribute("data-right");
+              group.querySelectorAll(".opt").forEach(function(o){
+                o.disabled = true;
+                if(o.hasAttribute("data-right")) o.classList.add("right");
+              });
+              if(!isRight) btn.classList.add("wrong");
+              var ex = group.nextElementSibling;
+              while(ex && !ex.classList.contains("explain")) ex = ex.nextElementSibling;
+              if(ex) ex.classList.add("show");
+              answered++; if(isRight) correct++;
+              if(quiz.id === "finalQuiz" && answered === total){
+                var fs = document.getElementById("finalScore");
+                var msg = correct === total ? "满分!主线已经完全打通,可以去动手装 Bookinfo 了。"
+                        : correct >= 4 ? "不错!回看错题对应的章节,再读一遍那一节就能补齐。"
+                        : "主线还有缺口,建议按章节顺序再通读一遍,重点看每章的「关键转折/串起来记」。";
+                fs.textContent = "得分:" + correct + " / " + total + " —— " + msg;
+              }
+            });
+          });
+        });
+
+        /* ---------- journey demo ---------- */
+        (function(){
+          var play = document.getElementById("journeyPlay");
+          var reset = document.getElementById("journeyReset");
+          var dot = document.getElementById("journeyDot");
+          var path = document.getElementById("journeyPath");
+          var steps = document.querySelectorAll("#journeyDemo .jstep");
+          var timer = null;
+          function clearSteps(){ steps.forEach(function(s){ s.classList.remove("on"); }); }
+          function stop(){
+            if(timer){ cancelAnimationFrame(timer); timer = null; }
+            play.disabled = false;
+          }
+          play.addEventListener("click", function(){
+            stop(); clearSteps();
+            play.disabled = true;
+            var len = path.getTotalLength();
+            var start = null, DUR = 5200;
+            dot.style.opacity = "1";
+            function frame(ts){
+              if(!start) start = ts;
+              var p = Math.min((ts - start) / DUR, 1);
+              var pt = path.getPointAtLength(p * len);
+              dot.setAttribute("cx", pt.x); dot.setAttribute("cy", pt.y);
+              var idx = Math.min(Math.floor(p * steps.length), steps.length - 1);
+              steps.forEach(function(s, i){ s.classList.toggle("on", i === idx); });
+              if(p < 1){ timer = requestAnimationFrame(frame); }
+              else { steps.forEach(function(s){ s.classList.add("on"); }); stop(); }
+            }
+            timer = requestAnimationFrame(frame);
+          });
+          reset.addEventListener("click", function(){
+            stop(); clearSteps(); dot.style.opacity = "0";
+          });
+        })();
+
+        /* ---------- canary demo ---------- */
+        (function(){
+          var range = document.getElementById("canaryRange");
+          var val = document.getElementById("canaryVal");
+          var stream = document.getElementById("canaryStream");
+          var c1 = document.getElementById("canaryC1"), c2 = document.getElementById("canaryC2"), tot = document.getElementById("canaryTotal");
+          var n1 = 0, n2 = 0;
+          range.addEventListener("input", function(){ val.textContent = range.value + "%"; });
+          function upd(){ c1.textContent = n1; c2.textContent = n2; tot.textContent = n1 + n2; }
+          document.getElementById("canaryGo").addEventListener("click", function(){
+            var w2 = parseInt(range.value, 10);
+            for(var i = 0; i < 60; i++){
+              (function(delay){
+                setTimeout(function(){
+                  var toV2 = Math.random() * 100 < w2;
+                  if(toV2) n2++; else n1++;
+                  var d = document.createElement("div");
+                  d.className = "dot";
+                  d.style.background = toV2 ? "var(--sidecar)" : "var(--pod)";
+                  d.style.top = toV2 ? "58px" : "16px";
+                  d.style.left = "-14px";
+                  d.style.transition = "left 1.1s linear";
+                  stream.appendChild(d);
+                  requestAnimationFrame(function(){ d.style.left = "calc(100% + 14px)"; });
+                  setTimeout(function(){ d.remove(); }, 1250);
+                  upd();
+                }, delay);
+              })(i * 45);
+            }
+          });
+          document.getElementById("canaryClear").addEventListener("click", function(){
+            n1 = 0; n2 = 0; upd(); stream.querySelectorAll(".dot").forEach(function(d){ d.remove(); });
+          });
+        })();
+
+        /* ---------- circuit breaker demo ---------- */
+        (function(){
+          var range = document.getElementById("failRange");
+          var val = document.getElementById("failVal");
+          var stateEl = document.getElementById("breakerState");
+          var log = document.getElementById("breakerLog");
+          var okEl = document.getElementById("brOk"), errEl = document.getElementById("brErr"), fastEl = document.getElementById("brFast");
+          var ok = 0, err = 0, fast = 0, consec = 0, state = "closed", reopenAt = 0, busy = false;
+          range.addEventListener("input", function(){ val.textContent = range.value + "%"; });
+          function setState(s){
+            state = s;
+            if(s === "closed"){ stateEl.textContent = "CLOSED(正常放行)"; stateEl.style.color = "var(--ok)"; }
+            else if(s === "open"){ stateEl.textContent = "OPEN(已熔断,快速失败)"; stateEl.style.color = "var(--bad)"; }
+            else { stateEl.textContent = "HALF-OPEN(试探放行)"; stateEl.style.color = "var(--amber)"; }
+          }
+          function line(text, cls){
+            var div = document.createElement("div");
+            if(cls) div.className = cls;
+            div.textContent = text;
+            log.appendChild(div);
+            log.scrollTop = log.scrollHeight;
+          }
+          function stats(){ okEl.textContent = ok; errEl.textContent = err; fastEl.textContent = fast; }
+          function sendOne(n, done){
+            var now = Date.now();
+            if(state === "open"){
+              if(now >= reopenAt){
+                setState("half");
+                line("⏱ 熔断冷却结束,进入半开状态,放行 1 个请求试探…", "fast");
+              } else {
+                fast++; stats();
+                line("请求 #" + n + " → 被熔断拦下,立即失败(未打到后端)", "fast");
+                return done();
+              }
+            }
+            var fail = Math.random() * 100 < parseInt(range.value, 10);
+            if(fail){
+              err++; consec++;
+              line("请求 #" + n + " → 后端返回 500(连续失败 " + consec + " 次)", "err");
+              if(state === "half"){
+                setState("open"); reopenAt = Date.now() + 4000; consec = 0;
+                line("✖ 试探请求仍失败,重新熔断 4 秒", "err");
+              } else if(consec >= 5){
+                setState("open"); reopenAt = Date.now() + 4000; consec = 0;
+                line("⚡ 连续失败达阈值,断路器跳闸!该实例被踢出负载均衡池 4 秒", "err");
+              }
+            } else {
+              ok++; consec = 0;
+              line("请求 #" + n + " → 200 OK", "ok");
+              if(state === "half"){ setState("closed"); line("✔ 试探成功,断路器恢复关闭,流量正常放行", "ok"); }
+            }
+            stats(); done();
+          }
+          document.getElementById("breakerGo").addEventListener("click", function(){
+            if(busy) return; busy = true;
+            var i = 0;
+            (function next(){
+              if(i >= 10){ busy = false; return; }
+              i++;
+              sendOne(i, function(){ setTimeout(next, 260); });
+            })();
+          });
+          document.getElementById("breakerReset").addEventListener("click", function(){
+            ok = 0; err = 0; fast = 0; consec = 0; setState("closed"); stats();
+            log.innerHTML = "等待发送请求…";
+          });
+        })();
+
+        /* ---------- mTLS demo ---------- */
+        (function(){
+          var plainBtn = document.getElementById("mtlsPlain");
+          var encBtn = document.getElementById("mtlsEnc");
+          var box = document.getElementById("packetBox");
+          var note = document.getElementById("packetNote");
+          var plainText = "POST /payments/charge HTTP/1.1\nHost: payments\nAuthorization: Bearer eyJhbGciOiJIUzI1NiIs…\nBody: {\"card\": \"6222 0202 0000 1234\", \"amount\": 199.00}";
+          var encText = "TLS 1.3 加密通道(ClientHello / Certificate: spiffe://cluster.local/ns/default/sa/orders ✔ 互验通过)\n16 03 03 00 a4 9f 2c …(以下为应用数据,已用会话密钥加密)\n8d e1 07 b3 55 9a c4 02 f7 6d 1e 90 aa 48 d3 6b 20 …";
+          function setMode(enc){
+            plainBtn.classList.toggle("on", !enc);
+            encBtn.classList.toggle("on", enc);
+            box.textContent = enc ? encText : plainText;
+            box.className = "packet " + (enc ? "enc" : "plain");
+            note.textContent = enc
+              ? "🔒 窃听者视角:只能看到一串密文;想伪造请求?没有合法证书,连握手都过不了。"
+              : "👁 窃听者视角:卡号、金额、令牌全部一览无余,还能照着这个格式伪造请求。";
+          }
+          plainBtn.addEventListener("click", function(){ setMode(false); });
+          encBtn.addEventListener("click", function(){ setMode(true); });
+        })();
+      })();
+    </script>
+  </body>
+</html>
