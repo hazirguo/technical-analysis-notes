@@ -8,6 +8,7 @@
 
 | 日期 | 产物 | 说明 | 链接 |
 |---|---|---|---|
+| 2026-11-09 | eBPF 可视化学习教程 | 面向 C/C++ 系统工程师的 11 章教程：从 cBPF 历史与内核模块之痛引入，详解 bpf() 系统调用、验证器、Maps、CO-RE / BTF、XDP、TC BPF、Socket 与 cgroup 钩子、NAT 与连接跟踪；以 Cilium 数据面为参照，最后落到沙箱网络转发面实战设计（veth 拓扑、五张 Map、M1–M5 落地里程碑）；含挂载点全景、验证器模拟器、Map 实验台、XDP 实验台、沙箱转发实验室五组交互演示与 8 题自测；以 RFC 9669 与内核 6.1+（tcx 需 6.6+）为准 | [在线浏览](https://hazirguo.github.io/technical-analysis-notes/ebpf-learning/) · [源码目录](./ebpf-learning/) |
 | 2026-11-09 | CNI 可视化学习教程 | 面向 K8s 初学者的 13 章系统教程：从 Docker 网络之痛与 K8s 网络模型逐步引入，详解 CNI 规范 1.1.0、插件链与 IPAM、Overlay / BGP / 云 VPC 三种组网路线；Flannel、Calico、Cilium、Antrea、Kube-OVN、Multus 与云厂商 CNI 全景；含 Pod 接入、跨节点数据包旅程、NetworkPolicy、三问选型向导四组交互演示与自测；以 CNI 规范 1.1.0 为准 | [在线浏览](https://hazirguo.github.io/technical-analysis-notes/cni-learning/) · [源码目录](./cni-learning/) |
 | 2026-11-09 | Istio 可视化学习教程 | 面向 K8s 初学者的 9 章系统教程：从微服务痛点与 K8s 能力边界逐步引入，详解 istiod / Envoy / xDS、Sidecar 与 Ambient（ztunnel + Waypoint）双数据面、流量管理、安全 mTLS 与授权、可观测性；含请求旅程、金丝雀、熔断、mTLS 四组交互演示与自测；以 Istio 1.31 为准 | [在线浏览](https://hazirguo.github.io/technical-analysis-notes/istio-learning/) · [源码目录](./istio-learning/) |
 | 2026-11-04 | OpenKruise Agents 沙箱源码分析 | 基于源码 HEAD 20bbd53（710 个 Go 文件）逐项核实：Sandbox 本质是标准 Pod、17 个 CRD、预热池 Claim 与删 Pod 式 Pause、与 Envoy 同进程的 Go filter 入站网关与流量唤醒、出站由独立的 Agentio 栈实现（agentiod 策略编译与 DNS 主动解析、EPE 的 L7 执行、ztunnel 的 L4 执行，三仓记账）；含整体架构图与入站、出站双步进演示 | [在线浏览](https://hazirguo.github.io/technical-analysis-notes/openkruise-agents/) · [源码目录](./openkruise-agents/) |

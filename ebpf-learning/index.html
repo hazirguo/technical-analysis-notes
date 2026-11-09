@@ -1,0 +1,2036 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="light dark" />
+    <link rel="icon" href="data:," />
+    <title>eBPF 从入门到精通 · 沙箱网络转发面实战教程</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;900&family=Noto+Serif+SC:wght@700;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet" />
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #faf7f1;
+        --bg-soft: #f2ecdf;
+        --panel: #ffffff;
+        --panel-2: #f7f3ea;
+        --ink: #211c14;
+        --ink-2: #57503f;
+        --ink-3: #8a8171;
+        --line: #e0d7c3;
+        --accent: #b97a0c;
+        --accent-strong: #9a6604;
+        --accent-soft: #fbeecd;
+        --bee: #f5b921;
+        --good: #1e7d46;
+        --good-soft: #e2f2e7;
+        --bad: #b3372a;
+        --bad-soft: #fbe9e6;
+        --info: #1d5fa8;
+        --info-soft: #e4eefb;
+        --code-bg: #1b1712;
+        --code-ink: #f3e9d2;
+        --code-dim: #a2937a;
+        --code-key: #f5b921;
+        --code-str: #9ecb86;
+        --code-com: #7d7261;
+        --code-fn: #7cc7e8;
+        --shadow: 0 1px 2px rgba(60, 45, 10, .06), 0 8px 24px rgba(60, 45, 10, .06);
+        --radius: 10px;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #14110d;
+          --bg-soft: #1a1712;
+          --panel: #1f1b15;
+          --panel-2: #26211a;
+          --ink: #f0e9da;
+          --ink-2: #c4bba6;
+          --ink-3: #8d8471;
+          --line: #373126;
+          --accent: #f0b429;
+          --accent-strong: #ffc94d;
+          --accent-soft: #3a2d10;
+          --bee: #f5b921;
+          --good: #5cc98a;
+          --good-soft: #16301f;
+          --bad: #f08374;
+          --bad-soft: #3a1d18;
+          --info: #7db4f0;
+          --info-soft: #18283e;
+          --code-bg: #100d0a;
+          --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
+        }
+      }
+      * { box-sizing: border-box; }
+      html { scroll-behavior: smooth; }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--ink);
+        font-family: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+        font-size: 16px;
+        line-height: 1.75;
+        -webkit-font-smoothing: antialiased;
+      }
+      ::selection { background: var(--bee); color: #1b1712; }
+
+      /* ---------- 顶部进度条 ---------- */
+      #progressBar {
+        position: fixed; top: 0; left: 0; height: 3px; width: 0;
+        background: var(--bee); z-index: 60; transition: width .25s ease;
+      }
+
+      /* ---------- 布局 ---------- */
+      .layout {
+        display: grid;
+        grid-template-columns: 264px minmax(0, 1fr);
+        max-width: 1240px;
+        margin: 0 auto;
+        min-height: 100vh;
+      }
+      aside {
+        position: sticky; top: 0; height: 100vh; overflow-y: auto;
+        padding: 28px 18px 40px 24px;
+        border-right: 1px solid var(--line);
+      }
+      .brand { margin-bottom: 6px; }
+      .brand .bee-mark {
+        display: inline-flex; align-items: center; gap: 8px;
+        font-family: "JetBrains Mono", monospace; font-weight: 700; font-size: 13px;
+        letter-spacing: .04em; color: var(--accent-strong);
+      }
+      .brand h1 {
+        font-family: "Noto Serif SC", serif; font-weight: 900;
+        font-size: 24px; line-height: 1.3; margin: 8px 0 4px;
+      }
+      .brand p { margin: 0; font-size: 13px; color: var(--ink-2); line-height: 1.6; }
+      .goal-box {
+        margin: 16px 0 20px; padding: 12px 14px;
+        background: var(--accent-soft); border: 1px solid var(--line);
+        border-radius: var(--radius); font-size: 13px; line-height: 1.65;
+      }
+      .goal-box b { color: var(--accent-strong); }
+      nav.toc { display: flex; flex-direction: column; gap: 2px; }
+      nav.toc button {
+        display: flex; align-items: baseline; gap: 10px;
+        width: 100%; text-align: left; border: 0; background: transparent;
+        padding: 8px 10px; border-radius: 8px; cursor: pointer;
+        font-family: inherit; font-size: 14px; color: var(--ink-2); line-height: 1.45;
+      }
+      nav.toc button .no {
+        font-family: "JetBrains Mono", monospace; font-size: 11px; font-weight: 700;
+        color: var(--ink-3); min-width: 20px;
+      }
+      nav.toc button:hover { background: var(--bg-soft); color: var(--ink); }
+      nav.toc button.active { background: var(--accent-soft); color: var(--ink); font-weight: 700; }
+      nav.toc button.active .no { color: var(--accent-strong); }
+      nav.toc button .done {
+        margin-left: auto; font-size: 11px; color: var(--good); visibility: hidden;
+      }
+      nav.toc button.seen .done { visibility: visible; }
+      .side-note { margin-top: 22px; font-size: 12px; color: var(--ink-3); line-height: 1.7; }
+
+      main { padding: 40px 44px 80px; min-width: 0; }
+      section.chapter { display: none; max-width: 820px; }
+      section.chapter.active { display: block; animation: fadein .3s ease; }
+      @keyframes fadein { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+      @media (prefers-reduced-motion: reduce) {
+        section.chapter.active { animation: none; }
+        html { scroll-behavior: auto; }
+      }
+
+      .ch-kicker {
+        font-family: "JetBrains Mono", monospace; font-size: 12px; font-weight: 700;
+        letter-spacing: .14em; color: var(--accent-strong); text-transform: uppercase;
+      }
+      h2.ch-title {
+        font-family: "Noto Serif SC", serif; font-weight: 900;
+        font-size: 32px; line-height: 1.3; margin: 8px 0 10px;
+      }
+      .ch-lede { font-size: 17px; color: var(--ink-2); margin: 0 0 8px; line-height: 1.8; }
+      h3 {
+        font-family: "Noto Serif SC", serif; font-weight: 700;
+        font-size: 21px; margin: 34px 0 10px; line-height: 1.4;
+      }
+      h4 { font-size: 16px; font-weight: 700; margin: 24px 0 6px; }
+      p { margin: 10px 0; }
+      ul, ol { margin: 10px 0; padding-left: 24px; }
+      li { margin: 5px 0; }
+      strong { font-weight: 700; }
+      a { color: var(--accent-strong); }
+      code {
+        font-family: "JetBrains Mono", monospace; font-size: .88em;
+        background: var(--bg-soft); border: 1px solid var(--line);
+        padding: 1px 6px; border-radius: 5px; white-space: nowrap;
+      }
+      .term { border-bottom: 2px dotted var(--bee); font-weight: 500; }
+
+      /* ---------- 代码块 ---------- */
+      .codeblock {
+        background: var(--code-bg); border-radius: var(--radius);
+        margin: 16px 0; overflow: hidden; box-shadow: var(--shadow);
+      }
+      .codeblock .cb-head {
+        display: flex; align-items: center; gap: 8px;
+        padding: 8px 14px; border-bottom: 1px solid rgba(245,185,33,.18);
+        font-family: "JetBrains Mono", monospace; font-size: 12px; color: var(--code-dim);
+      }
+      .codeblock .cb-head .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--bee); flex: none; }
+      .codeblock pre {
+        margin: 0; padding: 16px 18px; overflow-x: auto;
+        font-family: "JetBrains Mono", monospace; font-size: 13.5px; line-height: 1.7;
+        color: var(--code-ink);
+      }
+      .codeblock pre code { background: none; border: 0; padding: 0; white-space: pre; font-size: inherit; color: inherit; }
+      .tok-k { color: var(--code-key); }
+      .tok-s { color: var(--code-str); }
+      .tok-c { color: var(--code-com); font-style: italic; }
+      .tok-f { color: var(--code-fn); }
+
+      /* ---------- 结构示意图（原生方框图，边框由布局保证对齐） ---------- */
+      .fig {
+        background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+        margin: 16px 0; overflow: hidden; box-shadow: var(--shadow);
+      }
+      .fig .fig-head {
+        display: flex; align-items: center; gap: 8px;
+        padding: 9px 14px; border-bottom: 1px solid var(--line); background: var(--panel-2);
+        font-family: "JetBrains Mono", monospace; font-size: 12px; color: var(--ink-2);
+      }
+      .fig .fig-head .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--bee); flex: none; }
+      .fig .fig-body { padding: 18px; }
+      .pano { display: grid; grid-template-columns: minmax(0, 1fr) 118px minmax(0, 1.5fr); gap: 14px; }
+      .pano.dp { grid-template-columns: minmax(0, .85fr) 118px minmax(0, 1.7fr); }
+      .zone-tag {
+        font-family: "JetBrains Mono", monospace; font-size: 11.5px; font-weight: 700;
+        letter-spacing: .08em; color: var(--accent-strong); margin-bottom: 8px;
+      }
+      .fzone { border: 1.5px dashed var(--ink-3); border-radius: 12px; padding: 12px; }
+      .fbox { background: var(--panel-2); border: 1.5px solid var(--line); border-radius: var(--radius); padding: 12px 14px; }
+      .fbox.hl { border-color: var(--accent); background: var(--accent-soft); }
+      .fbox .fb-title { font-weight: 700; font-size: 15px; line-height: 1.45; }
+      .fbox .fb-sub { font-size: 12.5px; color: var(--ink-2); font-family: "JetBrains Mono", monospace; margin-top: 3px; line-height: 1.65; }
+      .fbox .fb-note { font-size: 13.5px; margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--line); }
+      .vflow { display: flex; flex-direction: column; }
+      .vflow .varrow {
+        text-align: center; color: var(--ink-3); font-size: 14px; line-height: 1.25;
+        padding: 2px 0; font-family: "JetBrains Mono", monospace;
+      }
+      .vflow .varrow span { font-size: 11px; font-family: "Noto Sans SC", sans-serif; }
+      .pano-links { display: flex; flex-direction: column; gap: 22px; justify-content: center; }
+      .plink { text-align: center; }
+      .plink .pl-k { display: block; font-family: "JetBrains Mono", monospace; font-size: 11px; color: var(--ink-3); margin-bottom: 3px; }
+      .plink .pl-a { display: block; font-size: 13px; font-weight: 700; color: var(--accent-strong); white-space: nowrap; }
+      .plink .pl-a .arr { font-family: "JetBrains Mono", monospace; font-weight: 400; }
+      .arr-v { display: none; }
+      .fig-strip {
+        display: flex; gap: 6px 12px; align-items: baseline; flex-wrap: wrap;
+        margin-top: 14px; padding: 11px 14px;
+        background: var(--panel-2); border: 1px solid var(--line); border-radius: var(--radius);
+        font-size: 13.5px; line-height: 1.7;
+      }
+      .fig-strip .fs-k {
+        font-family: "JetBrains Mono", monospace; font-size: 11.5px; font-weight: 700;
+        letter-spacing: .06em; color: var(--accent-strong); flex: none;
+      }
+      .map-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+      .mchip {
+        font-family: "JetBrains Mono", monospace; font-size: 12px; white-space: nowrap;
+        background: var(--panel); border: 1px solid var(--line); border-radius: 20px; padding: 2px 10px;
+      }
+      .mchip i { font-style: normal; color: var(--ink-3); }
+      @media (max-width: 720px) {
+        .pano, .pano.dp { grid-template-columns: 1fr; }
+        .pano-links { flex-direction: row; justify-content: space-around; gap: 10px; padding: 2px 0; }
+        .arr-h { display: none; }
+        .arr-v { display: inline; }
+      }
+
+      /* ---------- 提示框 ---------- */
+      .callout {
+        border-radius: var(--radius); padding: 14px 18px; margin: 18px 0;
+        font-size: 15px; line-height: 1.75;
+      }
+      .callout .co-title { font-weight: 700; display: block; margin-bottom: 2px; }
+      .callout.key { background: var(--accent-soft); border: 1px solid var(--bee); }
+      .callout.key .co-title { color: var(--accent-strong); }
+      .callout.warn { background: var(--bad-soft); border: 1px solid var(--bad); }
+      .callout.warn .co-title { color: var(--bad); }
+      .callout.info { background: var(--info-soft); border: 1px solid var(--info); }
+      .callout.info .co-title { color: var(--info); }
+      .callout.sandbox { background: var(--panel-2); border: 1px dashed var(--accent); }
+      .callout.sandbox .co-title { color: var(--accent-strong); }
+
+      /* ---------- 表格 ---------- */
+      .table-wrap { overflow-x: auto; margin: 16px 0; border: 1px solid var(--line); border-radius: var(--radius); }
+      table { border-collapse: collapse; width: 100%; font-size: 14.5px; background: var(--panel); }
+      th, td { padding: 10px 14px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); }
+      th { background: var(--panel-2); font-weight: 700; white-space: nowrap; }
+      tr:last-child td { border-bottom: 0; }
+      td code { white-space: normal; }
+
+      /* ---------- 演示通用 ---------- */
+      .demo {
+        background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+        box-shadow: var(--shadow); margin: 22px 0; overflow: hidden;
+      }
+      .demo-head {
+        display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+        padding: 14px 18px; border-bottom: 1px solid var(--line); background: var(--panel-2);
+      }
+      .demo-head .demo-tag {
+        font-family: "JetBrains Mono", monospace; font-size: 11px; font-weight: 700;
+        letter-spacing: .1em; background: var(--bee); color: #1b1712;
+        padding: 3px 9px; border-radius: 20px;
+      }
+      .demo-head h4 { margin: 0; font-size: 16px; }
+      .demo-body { padding: 18px; }
+      .demo-foot {
+        padding: 12px 18px; border-top: 1px solid var(--line);
+        font-size: 13.5px; color: var(--ink-2); background: var(--panel-2); line-height: 1.7;
+      }
+      .btn {
+        font-family: inherit; font-size: 14px; font-weight: 700; cursor: pointer;
+        border: 1px solid var(--accent); background: var(--accent); color: #fff;
+        padding: 8px 18px; border-radius: 8px; transition: filter .15s ease, transform .1s ease;
+      }
+      .btn:hover { filter: brightness(1.08); }
+      .btn:active { transform: translateY(1px); }
+      .btn.ghost { background: transparent; color: var(--accent-strong); }
+      .btn.small { padding: 5px 12px; font-size: 13px; }
+      .btn:disabled { opacity: .45; cursor: not-allowed; }
+      @media (prefers-color-scheme: dark) { .btn { color: #1b1712; } .btn.ghost { color: var(--accent-strong); } }
+
+      /* ---------- 挂载点全景 ---------- */
+      .hook-flow { display: flex; flex-direction: column; gap: 0; }
+      .hook-row { display: flex; align-items: stretch; gap: 10px; }
+      .hook-node {
+        flex: 1; text-align: left; cursor: pointer; font-family: inherit;
+        background: var(--panel-2); border: 2px solid var(--line); border-radius: var(--radius);
+        padding: 10px 14px; color: var(--ink); transition: border-color .15s, background .15s;
+      }
+      .hook-node:hover { border-color: var(--bee); }
+      .hook-node.sel { border-color: var(--accent); background: var(--accent-soft); }
+      .hook-node .hn-name { font-weight: 700; font-size: 15px; display: block; }
+      .hook-node .hn-sub { font-size: 12px; color: var(--ink-2); font-family: "JetBrains Mono", monospace; }
+      .hook-arrow {
+        text-align: center; color: var(--ink-3); font-size: 15px; line-height: 1.2; padding: 2px 0;
+        font-family: "JetBrains Mono", monospace;
+      }
+      .hook-arrow span { font-size: 11px; font-family: "Noto Sans SC", sans-serif; }
+      .hook-detail {
+        margin-top: 16px; border: 1px solid var(--line); border-radius: var(--radius);
+        padding: 16px 18px; background: var(--panel-2); min-height: 120px;
+      }
+      .hook-detail h5 { margin: 0 0 6px; font-size: 16px; }
+      .hook-detail .hd-meta {
+        display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 13px; color: var(--ink-2); margin-bottom: 8px;
+      }
+      .hook-detail .hd-meta b { color: var(--ink); font-family: "JetBrains Mono", monospace; font-size: 12.5px; }
+
+      /* ---------- 验证器演示 ---------- */
+      .verifier-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+      .snippet-pick { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+      .snippet-pick button {
+        text-align: left; font-family: inherit; cursor: pointer;
+        border: 2px solid var(--line); background: var(--panel-2); color: var(--ink);
+        border-radius: 8px; padding: 9px 12px; font-size: 13.5px;
+      }
+      .snippet-pick button.sel { border-color: var(--accent); background: var(--accent-soft); font-weight: 700; }
+      .v-checks { list-style: none; margin: 0; padding: 0; font-size: 14px; }
+      .v-checks li {
+        padding: 8px 12px; border-radius: 8px; margin-bottom: 6px;
+        background: var(--panel-2); border: 1px solid var(--line);
+        display: flex; gap: 10px; align-items: baseline; opacity: .45; transition: opacity .3s;
+      }
+      .v-checks li.on { opacity: 1; }
+      .v-checks li .st { font-family: "JetBrains Mono", monospace; font-weight: 700; font-size: 12px; min-width: 44px; }
+      .v-checks li.pass .st { color: var(--good); }
+      .v-checks li.fail .st { color: var(--bad); }
+      .v-verdict {
+        margin-top: 12px; padding: 12px 14px; border-radius: 8px; font-size: 14px; display: none;
+      }
+      .v-verdict.ok { display: block; background: var(--good-soft); border: 1px solid var(--good); }
+      .v-verdict.ng { display: block; background: var(--bad-soft); border: 1px solid var(--bad); }
+      .v-log {
+        margin-top: 10px; background: var(--code-bg); color: var(--code-ink);
+        border-radius: 8px; padding: 12px 14px; font-family: "JetBrains Mono", monospace;
+        font-size: 12px; line-height: 1.65; white-space: pre-wrap; word-break: break-all; display: none;
+        max-height: 190px; overflow-y: auto;
+      }
+      .v-log.show { display: block; }
+      .v-log .err { color: #f08374; }
+
+      /* ---------- Map 实验台 ---------- */
+      .map-lab { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+      .map-table { border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+      .map-table .mt-head {
+        background: var(--code-bg); color: var(--code-ink); padding: 9px 14px;
+        font-family: "JetBrains Mono", monospace; font-size: 12.5px;
+      }
+      .map-table .mt-head b { color: var(--bee); }
+      .map-rows { min-height: 148px; background: var(--panel); }
+      .map-row {
+        display: flex; justify-content: space-between; gap: 10px;
+        padding: 8px 14px; border-bottom: 1px solid var(--line);
+        font-family: "JetBrains Mono", monospace; font-size: 13px;
+      }
+      .map-row:last-child { border-bottom: 0; }
+      .map-row.flash { animation: flashrow 1s ease; }
+      @keyframes flashrow { 0% { background: var(--accent-soft); } 100% { background: transparent; } }
+      .map-empty { padding: 22px 14px; color: var(--ink-3); font-size: 13.5px; text-align: center; }
+      .map-ops { display: flex; flex-direction: column; gap: 14px; }
+      .op-box { border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; background: var(--panel-2); }
+      .op-box h5 { margin: 0 0 4px; font-size: 14px; }
+      .op-box p { margin: 0 0 10px; font-size: 13px; color: var(--ink-2); }
+      .op-box .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+      .op-box select, .op-box input {
+        font-family: "JetBrains Mono", monospace; font-size: 13px; padding: 6px 8px;
+        border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--ink);
+      }
+      .lab-log {
+        margin-top: 14px; background: var(--code-bg); color: var(--code-ink); border-radius: 8px;
+        padding: 12px 14px; font-family: "JetBrains Mono", monospace; font-size: 12.5px;
+        line-height: 1.7; height: 132px; overflow-y: auto; white-space: pre-wrap;
+      }
+      .lab-log .t { color: var(--code-dim); }
+      .lab-log .hl { color: var(--bee); }
+
+      /* ---------- XDP 演示 ---------- */
+      .xdp-rules { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 16px; }
+      .xdp-rule {
+        border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 12px; background: var(--panel-2);
+      }
+      .xdp-rule .xr-name { font-weight: 700; font-size: 14px; margin-bottom: 6px; }
+      .xdp-rule .xr-name span { font-family: "JetBrains Mono", monospace; font-size: 11.5px; color: var(--ink-3); font-weight: 400; display: block; }
+      .xdp-rule select {
+        width: 100%; font-family: inherit; font-size: 13.5px; padding: 6px;
+        border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--ink);
+      }
+      .xdp-stage {
+        position: relative; border: 1px dashed var(--line); border-radius: var(--radius);
+        padding: 14px; min-height: 118px; background: var(--panel-2); overflow: hidden;
+      }
+      .xdp-lane { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
+      .xdp-lane:last-child { margin-bottom: 0; }
+      .xdp-lane .lane-label {
+        font-family: "JetBrains Mono", monospace; font-size: 11px; color: var(--ink-3); min-width: 74px;
+      }
+      .pkt {
+        font-family: "JetBrains Mono", monospace; font-size: 12px; font-weight: 700;
+        padding: 4px 10px; border-radius: 20px; border: 1.5px solid var(--ink-3);
+        background: var(--panel); display: inline-block;
+      }
+      .pkt.pass { border-color: var(--good); color: var(--good); }
+      .pkt.drop { border-color: var(--bad); color: var(--bad); text-decoration: line-through; opacity: .75; }
+      .pkt.tx { border-color: var(--info); color: var(--info); }
+      .xdp-counters { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+      .counter {
+        flex: 1; min-width: 100px; text-align: center; border: 1px solid var(--line);
+        border-radius: var(--radius); padding: 10px 6px; background: var(--panel);
+      }
+      .counter .n { font-family: "JetBrains Mono", monospace; font-size: 24px; font-weight: 700; display: block; line-height: 1.2; }
+      .counter .l { font-size: 12px; color: var(--ink-2); }
+      .counter.c-pass .n { color: var(--good); }
+      .counter.c-drop .n { color: var(--bad); }
+      .counter.c-tx .n { color: var(--info); }
+
+      /* ---------- 转发实验室 ---------- */
+      .lab-topo {
+        display: flex; align-items: stretch; gap: 0; margin-bottom: 16px;
+      }
+      .topo-node {
+        flex: 1; border: 2px solid var(--line); border-radius: var(--radius);
+        padding: 10px 8px; text-align: center; background: var(--panel-2);
+        transition: border-color .3s, background .3s; min-width: 0;
+      }
+      .topo-node .tn-name { font-weight: 700; font-size: 13.5px; display: block; line-height: 1.4; }
+      .topo-node .tn-sub { font-family: "JetBrains Mono", monospace; font-size: 10.5px; color: var(--ink-3); display: block; word-break: break-all; }
+      .topo-node.on { border-color: var(--bee); background: var(--accent-soft); }
+      .topo-link {
+        align-self: center; padding: 0 3px; color: var(--ink-3);
+        font-family: "JetBrains Mono", monospace; font-size: 13px; flex: none;
+      }
+      .lab-controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; margin-bottom: 14px; }
+      .lab-controls .ctl { display: flex; flex-direction: column; gap: 4px; }
+      .lab-controls label { font-size: 12.5px; font-weight: 700; color: var(--ink-2); }
+      .lab-controls select {
+        font-family: inherit; font-size: 14px; padding: 7px 10px;
+        border: 1px solid var(--line); border-radius: 7px; background: var(--panel); color: var(--ink);
+      }
+      .hdr-view {
+        font-family: "JetBrains Mono", monospace; font-size: 12.5px; line-height: 1.8;
+        background: var(--code-bg); color: var(--code-ink); border-radius: 8px; padding: 12px 16px;
+        margin-bottom: 14px; word-break: break-all;
+      }
+      .hdr-view .chg { color: var(--bee); font-weight: 700; }
+      .hdr-view .dim { color: var(--code-dim); }
+      .step-desc {
+        border: 1px solid var(--line); border-left: 4px solid var(--bee);
+        border-radius: 8px; padding: 12px 16px; background: var(--panel-2);
+        font-size: 14.5px; min-height: 76px; margin-bottom: 14px;
+      }
+      .step-desc b { color: var(--accent-strong); }
+      .step-nav { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+      .step-nav .step-count { font-family: "JetBrains Mono", monospace; font-size: 12.5px; color: var(--ink-3); margin-left: auto; }
+      .ct-table { font-size: 12.5px; }
+      .ct-table td, .ct-table th { padding: 7px 10px; font-family: "JetBrains Mono", monospace; font-size: 12px; }
+      .ct-empty { font-size: 13px; color: var(--ink-3); padding: 10px 4px; }
+
+      /* ---------- 章末 ---------- */
+      .ch-summary {
+        margin-top: 36px; border: 1px solid var(--line); border-radius: 14px;
+        padding: 18px 20px; background: var(--panel-2);
+      }
+      .ch-summary h4 { margin: 0 0 8px; font-size: 15px; }
+      .ch-summary ul { margin: 0; }
+      .pager { display: flex; justify-content: space-between; gap: 12px; margin-top: 28px; }
+      .pager button {
+        font-family: inherit; font-size: 14px; font-weight: 700; cursor: pointer;
+        border: 1px solid var(--line); background: var(--panel); color: var(--ink);
+        padding: 10px 18px; border-radius: 9px;
+      }
+      .pager button:hover { border-color: var(--bee); }
+      .pager button:disabled { opacity: .35; cursor: default; }
+      .pager .next { background: var(--accent); border-color: var(--accent); color: #fff; }
+      @media (prefers-color-scheme: dark) { .pager .next { color: #1b1712; } }
+
+      /* ---------- 自测 ---------- */
+      .quiz-q {
+        border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px;
+        margin-bottom: 16px; background: var(--panel);
+      }
+      .quiz-q .q-text { font-weight: 700; margin-bottom: 12px; }
+      .quiz-q .q-text .qno {
+        font-family: "JetBrains Mono", monospace; color: var(--accent-strong); margin-right: 8px;
+      }
+      .quiz-opt {
+        display: block; width: 100%; text-align: left; font-family: inherit; font-size: 14.5px;
+        border: 1.5px solid var(--line); background: var(--panel-2); color: var(--ink);
+        border-radius: 8px; padding: 10px 14px; margin-bottom: 8px; cursor: pointer; line-height: 1.6;
+      }
+      .quiz-opt:hover { border-color: var(--bee); }
+      .quiz-opt.right { border-color: var(--good); background: var(--good-soft); font-weight: 700; }
+      .quiz-opt.wrong { border-color: var(--bad); background: var(--bad-soft); }
+      .quiz-opt:disabled { cursor: default; }
+      .quiz-exp { display: none; font-size: 14px; color: var(--ink-2); margin-top: 8px; line-height: 1.75; }
+      .quiz-exp.show { display: block; }
+      .quiz-score {
+        text-align: center; padding: 22px; border-radius: 12px; display: none;
+        background: var(--accent-soft); border: 1px solid var(--bee); margin-top: 6px;
+      }
+      .quiz-score.show { display: block; }
+      .quiz-score .big { font-family: "JetBrains Mono", monospace; font-size: 34px; font-weight: 700; }
+
+      /* ---------- 里程碑 ---------- */
+      .mile { display: flex; gap: 14px; margin: 14px 0; }
+      .mile .m-badge {
+        flex: none; width: 44px; height: 44px; border-radius: 50%;
+        background: var(--accent-soft); border: 2px solid var(--bee);
+        display: flex; align-items: center; justify-content: center;
+        font-family: "JetBrains Mono", monospace; font-weight: 700; color: var(--accent-strong);
+      }
+      .mile .m-body { flex: 1; border-bottom: 1px dashed var(--line); padding-bottom: 12px; }
+      .mile:last-child .m-body { border-bottom: 0; }
+      .mile h4 { margin: 2px 0 4px; }
+      .mile p { margin: 4px 0; font-size: 14.5px; color: var(--ink-2); }
+
+      /* ---------- 移动端 ---------- */
+      .mobile-toc { display: none; }
+      @media (max-width: 900px) {
+        .layout { grid-template-columns: 1fr; }
+        aside { display: none; }
+        main { padding: 22px 18px 64px; }
+        h2.ch-title { font-size: 26px; }
+        .mobile-toc {
+          display: block; position: sticky; top: 0; z-index: 50;
+          background: var(--bg); padding: 12px 14px 10px; border-bottom: 1px solid var(--line);
+        }
+        .mobile-toc .mt-title {
+          font-family: "Noto Serif SC", serif; font-weight: 900; font-size: 17px; margin-bottom: 8px;
+        }
+        .mobile-toc .mt-scroll { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; -webkit-overflow-scrolling: touch; }
+        .mobile-toc button {
+          flex: none; font-family: inherit; font-size: 13px; padding: 6px 12px;
+          border-radius: 20px; border: 1px solid var(--line); background: var(--panel); color: var(--ink-2); cursor: pointer;
+        }
+        .mobile-toc button.active { background: var(--accent-soft); border-color: var(--bee); color: var(--ink); font-weight: 700; }
+        .verifier-grid, .map-lab { grid-template-columns: 1fr; }
+        .lab-topo { flex-wrap: wrap; gap: 6px; }
+        .topo-link { display: none; }
+        .topo-node { flex: 1 1 30%; }
+        .codeblock pre { font-size: 12.5px; }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="progressBar"></div>
+
+    <div class="mobile-toc" id="mobileToc">
+      <div class="mt-title">eBPF 从入门到精通</div>
+      <div class="mt-scroll" id="mobileTocScroll"></div>
+    </div>
+
+    <div class="layout">
+      <aside>
+        <div class="brand">
+          <span class="bee-mark">⬢ eBPF TUTORIAL</span>
+          <h1>eBPF 从入门到精通</h1>
+          <p>从零理解内核可编程性，一路走到亲手写出沙箱网络的转发面。</p>
+        </div>
+        <div class="goal-box">
+          <b>本教程的终点：</b>你能独立设计并实现一个跑在 veth 对上的 eBPF 转发面——包分类、策略放行、NAT 改写、连接跟踪、计数排障，全部在内核数据面完成。
+        </div>
+        <nav class="toc" id="toc"></nav>
+        <p class="side-note">环境基线：Linux 内核 5.10+（推荐 5.15 / 6.x）、libbpf 1.x、clang 14+。文中代码均为可编译的真实写法，命令可直接在实验机上执行。</p>
+      </aside>
+
+      <main id="main">
+        <!-- ================= 第 1 章 ================= -->
+        <section class="chapter" data-ch="0">
+          <div class="ch-kicker">Chapter 01 · 动机</div>
+          <h2 class="ch-title">为什么沙箱网络绕不开 eBPF</h2>
+          <p class="ch-lede">你的沙箱项目里，网络转发、流量拦截、出站管控反复出现。传统做法每一条都有代价，而 eBPF 是过去十年内核给出的统一答案。这一章先讲清楚：不用 eBPF 时你在用什么付账，以及 eBPF 到底改变了什么。</p>
+
+          <h3>1.1 沙箱网络的四个老问题</h3>
+          <p>一个典型的沙箱（Agent 沙箱、代码执行沙箱、微虚机沙箱）对网络转发面的要求大同小异：</p>
+          <ul>
+            <li><strong>隔离</strong>：沙箱只能访问被允许的目标，默认拒绝一切出站；</li>
+            <li><strong>转发</strong>：沙箱在独立 network namespace 里，包要经 veth 对送到网关/宿主机再出去，需要 NAT 改写源地址；</li>
+            <li><strong>可观测</strong>：谁访问了什么、被拒了多少次，要能计数、能审计；</li>
+            <li><strong>性能与密度</strong>：一台宿主机跑几百个沙箱时，转发路径每多一跳、多一次拷贝，密度就掉一截。</li>
+          </ul>
+          <p>在 eBPF 普及之前，实现这些需求的工具箱是这样的：</p>
+          <div class="table-wrap">
+            <table>
+              <tr><th style="width:22%">老办法</th><th style="width:38%">怎么做</th><th>代价</th></tr>
+              <tr><td>iptables / nftables</td><td>在 netfilter 钩子上挂规则链做过滤与 NAT（支持 conntrack 状态匹配，nftables 还有 set/map 哈希查找）</td><td>本质是"匹配—动作"的声明式规则：链式跳转与多表组织一复杂，策略的表达、维护与排障成本迅速上升；想做"按身份决策、自定义状态机、顺带统计审计"这类通用逻辑时无从下手</td></tr>
+              <tr><td>用户态代理（如 TPROXY + 代理进程）</td><td>把流量劫持到用户态进程，进程里做策略与转发</td><td>每个包两次上下文切换 + 两次拷贝；代理进程本身成了瓶颈和单点</td></tr>
+              <tr><td>内核模块</td><td>自己写 LKM 挂钩子实现转发逻辑</td><td>一个野指针整个内核 panic；跟内核版本强绑定，升级内核就要改代码、重新过测试</td></tr>
+              <tr><td>Open vSwitch 等专用数据面</td><td>用现成的虚拟交换机转发</td><td>部署重、与沙箱编排体系割裂，策略下发要再接一套控制面</td></tr>
+            </table>
+          </div>
+
+          <h3>1.2 eBPF 的答案：在内核里安全地跑你的代码</h3>
+          <p><span class="term">eBPF</span>（extended Berkeley Packet Filter）是 Linux 内核中的一台<strong>事件驱动的虚拟机</strong>。你用 C 写一小段逻辑，clang 把它编译成 eBPF 字节码，加载进内核时先由<span class="term">验证器（verifier）</span>做静态检查——证明它不会崩溃、不会死循环、不会越界访问内存——通过后再由 <span class="term">JIT</span> 编译成本地机器码，挂到内核的某个<span class="term">挂载点（hook）</span>上。此后每当事件发生（比如网卡收到一个包），你的代码就在内核上下文里被直接执行。</p>
+          <p>这带来三个结构性变化，正好对上 1.1 的四道题：</p>
+          <ul>
+            <li><strong>转发不出内核</strong>：包在驱动层（XDP）或流量控制层（TC）就被处理、改写、重定向，没有用户态往返——解决性能与密度；</li>
+            <li><strong>逻辑可编程</strong>：不再是"规则条目"，而是真正的程序：查表、计数、改包头、做 NAT、维护连接状态——解决表达能力；</li>
+            <li><strong>策略与状态放在 Map 里</strong>：<span class="term">BPF Map</span> 是内核与用户态共享的键值存储。控制面（你的网关/编排程序）往 Map 里写策略，数据面（BPF 程序）查 Map 执行——策略变更不用重载程序，天然适配沙箱的动态编排。</li>
+          </ul>
+
+          <div class="callout sandbox">
+            <span class="co-title">与沙箱网关的对应关系</span>
+            沙箱网关里常见的机制——例如流量劫持到网关处理、按目标派生出站许可、出站做 NAT——本质都是在转发路径上做<strong>拦截 → 查策略 → 改写/放行</strong>。eBPF 把这条路径收进内核数据面：拦截点是 XDP/TC，策略是 Map，出站 NAT 是 BPF 程序里的改包逻辑。本教程最后一章会把这套东西拼成一个完整设计。
+          </div>
+
+          <h3>1.3 先建立一张心智地图</h3>
+          <p>后面十章都围绕这张图展开，先混个脸熟：</p>
+          <div class="fig" role="img" aria-label="eBPF 系统全景图：用户态的加载器程序经 bpf() 系统调用把程序送入内核，验证器检查后由 JIT 编译，BPF 程序挂在 hook 上运行并读写 BPF Maps；加载器同时读写 Map，下发策略、读取计数">
+            <div class="fig-head"><span class="dot"></span>eBPF 系统全景（先看轮廓，细节逐章展开）</div>
+            <div class="fig-body">
+              <div class="pano">
+                <div>
+                  <div class="zone-tag">用户态 · 控制面</div>
+                  <div class="fbox">
+                    <div class="fb-title">你的加载器程序</div>
+                    <div class="fb-sub">libbpf / Go</div>
+                    <div class="fb-note">策略下发 · 读计数</div>
+                  </div>
+                </div>
+                <div class="pano-links">
+                  <div class="plink">
+                    <span class="pl-k">bpf() 系统调用</span>
+                    <span class="pl-a">加载 / 更新 <span class="arr arr-h">──▶</span><span class="arr arr-v">↓</span></span>
+                  </div>
+                  <div class="plink">
+                    <span class="pl-a"><span class="arr arr-h">◀──</span><span class="arr arr-v">↑</span> 读写 Map</span>
+                  </div>
+                </div>
+                <div>
+                  <div class="zone-tag">内核态 · 数据面</div>
+                  <div class="fzone">
+                    <div class="vflow">
+                      <div class="fbox">
+                        <div class="fb-title">验证器 verifier ─▶ JIT</div>
+                        <div class="fb-sub">加载时静态检查，通过后编译为本地机器码</div>
+                      </div>
+                      <div class="varrow">↓</div>
+                      <div class="fbox hl">
+                        <div class="fb-title">BPF 程序挂在 hook 上运行</div>
+                        <div class="fb-sub">XDP · TC · kprobe · …</div>
+                      </div>
+                      <div class="varrow">↓ <span>读写</span></div>
+                      <div class="fbox">
+                        <div class="fb-title">BPF Maps</div>
+                        <div class="fb-sub">策略 / 状态 / 计数</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <ul>
+            <li><strong>第 2 章</strong>把挂载点讲透：包在内核里走一趟，会依次经过哪些 hook，各能干什么；</li>
+            <li><strong>第 3 章</strong>动手写第一个程序，走通工具链；</li>
+            <li><strong>第 4、5 章</strong>是内功：验证器的规则、Map 的用法——写转发面 90% 的报错都在这两章里；</li>
+            <li><strong>第 6、7 章</strong>是转发面的两把主力武器：XDP 与 TC BPF；</li>
+            <li><strong>第 8 章</strong>拼装核心技术：NAT、连接跟踪、策略匹配；</li>
+            <li><strong>第 9 章</strong>讲可观测与排障；<strong>第 10 章</strong>是完整的沙箱转发面实战设计。</li>
+          </ul>
+
+          <div class="callout key">
+            <span class="co-title">学习方法</span>
+            每章都有可交互的演示，先动手点一点建立直觉，再读代码。带 <code>SEC(...)</code> 的代码段都是真实程序的写法，建议在实验机（或任意一台 Linux 云主机）上同步敲一遍——eBPF 的手感主要来自被验证器拒绝的次数。
+          </div>
+
+          <div class="ch-summary">
+            <h4>本章小结</h4>
+            <ul>
+              <li>eBPF = 内核内置虚拟机 + 验证器 + JIT：在内核事件点安全执行你写的代码。</li>
+              <li>沙箱网络的隔离、转发、NAT、可观测需求，正好落在 eBPF 的能力圈内。</li>
+              <li>控制面/数据面分离：用户态程序管策略（经 Map 下发），BPF 程序只管高速执行。</li>
+            </ul>
+          </div>
+          <div class="pager"><button class="prev" disabled>← 上一章</button><button class="next" data-goto="1">下一章：eBPF 全景 →</button></div>
+        </section>
+
+        <!-- ================= 第 2 章 ================= -->
+        <section class="chapter" data-ch="1">
+          <div class="ch-kicker">Chapter 02 · 全景</div>
+          <h2 class="ch-title">eBPF 全景：程序、挂载点与一个包的旅程</h2>
+          <p class="ch-lede">eBPF 不是一种程序，而是一个家族：挂在哪里，决定了你能拿到什么数据、能调用哪些辅助函数、能对事件做什么。这一章跟着一个数据包走完内核网络栈，把转发面相关的挂载点全部点亮。</p>
+
+          <h3>2.1 程序的生命周期</h3>
+          <p>无论哪种 eBPF 程序，一生都走这五步：</p>
+          <ol>
+            <li><strong>编写</strong>：用受限 C（或 Rust）写逻辑，段名 <code>SEC("xdp")</code> 等声明程序类型；</li>
+            <li><strong>编译</strong>：clang 以 <code>-target bpf</code> 编译出 <code>.bpf.o</code>（ELF 文件，内含字节码、Map 定义、重定位信息）；</li>
+            <li><strong>加载</strong>：用户态加载器调用 <code>bpf()</code> 系统调用，内核验证器逐指令检查安全性；</li>
+            <li><strong>挂载（attach）</strong>：把通过验证的程序绑到 hook 上——XDP 绑网卡、kprobe 绑函数地址、tracepoint 绑静态跟踪点；</li>
+            <li><strong>运行与卸载</strong>：事件触发即运行；卸载后若没有 pin 引用，程序与 Map 一并销毁。</li>
+          </ol>
+
+          <h3>2.2 一个包的旅程：转发面挂载点全景</h3>
+          <p>下面是收包方向上一个数据包的必经之路。<strong>点击任意节点</strong>，查看该挂载点的程序类型、上下文与典型用途——这是全教程最重要的一张图，第 6、7 章会分别放大 XDP 与 TC 两站。</p>
+
+          <div class="demo">
+            <div class="demo-head"><span class="demo-tag">交互演示</span><h4>挂载点全景图：点选查看每个 hook</h4></div>
+            <div class="demo-body">
+              <div class="hook-flow" id="hookFlow"></div>
+              <div class="hook-detail" id="hookDetail"></div>
+            </div>
+            <div class="demo-foot">发包方向是镜像的：应用 → socket → TC egress → 路由 → netfilter → 驱动。注意 XDP 只在<strong>收包</strong>方向存在（发包侧的对应物是 TC egress 与 AF_XDP）。沙箱转发面主要工作在 veth 两端的 TC 与 XDP 上。</div>
+          </div>
+
+          <h3>2.3 程序类型速查（与网络相关的部分）</h3>
+          <div class="table-wrap">
+            <table>
+              <tr><th>程序类型</th><th>上下文</th><th>返回值语义</th><th>转发面用途</th></tr>
+              <tr><td><code>BPF_PROG_TYPE_XDP</code></td><td><code>struct xdp_md</code>（裸包指针）</td><td><code>XDP_DROP / PASS / TX / REDIRECT / ABORTED</code></td><td>入口过滤、DDoS 清洗、负载均衡</td></tr>
+              <tr><td><code>BPF_PROG_TYPE_SCHED_CLS</code>（TC）</td><td><code>struct __sk_buff</code></td><td><code>TC_ACT_OK / SHOT / REDIRECT…</code></td><td>veth 转发、NAT、策略、整形——本教程主战场</td></tr>
+              <tr><td><code>BPF_PROG_TYPE_SCHED_ACT</code></td><td><code>struct __sk_buff</code></td><td>同上（action 形式）</td><td>较老用法，新项目用 CLS + direct-action</td></tr>
+              <tr><td><code>BPF_PROG_TYPE_SOCKET_FILTER</code></td><td><code>struct __sk_buff</code></td><td>返回保留的字节数</td><td>抓包过滤（tcpdump 的 BPF 即源于此）、socket 级过滤</td></tr>
+              <tr><td><code>BPF_PROG_TYPE_CGROUP_SKB / SOCK</code></td><td><code>__sk_buff</code> / socket</td><td>允许 / 拒绝</td><td>按 cgroup（≈按沙箱）做连接级策略</td></tr>
+              <tr><td><code>BPF_PROG_TYPE_KPROBE / TRACEPOINT</code></td><td><code>struct pt_regs</code> 等</td><td>忽略</td><td>可观测：统计、 tracing、排障（第 9 章）</td></tr>
+            </table>
+          </div>
+
+          <h3>2.4 两类上下文：xdp_md 与 __sk_buff</h3>
+          <p>初学者最容易混淆的一点：<strong>XDP 程序拿到的是"裸包"</strong>——只有 <code>data / data_end</code> 两个指针指向帧内存，内核还没为它分配 <code>sk_buff</code>，所以快，但也没有连接、路由等任何元数据。<strong>TC 程序拿到的是 <code>__sk_buff</code></strong>——包已经成型为 skb，可以读 <code>mark</code>、<code>priority</code>、入接口索引，可以调 <code>bpf_fib_lookup</code> 查路由表，可以 <code>bpf_redirect</code> 到别的设备。转发面之所以以 TC 为主力，正是因为它处在"信息足够多、又还来得及改道"的位置。</p>
+
+          <div class="callout info">
+            <span class="co-title">一个类比</span>
+            XDP 像机场安检口的第一道门：只看证件本身，决定放行、没收还是原路弹回，快得惊人但信息最少。TC 像登机口：旅客信息已在系统里，可以改签（redirect）、升舱（改 mark）、送去别的航站楼（另一个 netns）。
+          </div>
+
+          <div class="ch-summary">
+            <h4>本章小结</h4>
+            <ul>
+              <li>挂载点决定程序类型、上下文与能力边界；网络转发面主战场是 XDP（入口）+ TC（转发）。</li>
+              <li>XDP 处理裸包（xdp_md），TC 处理成型的 skb（__sk_buff），后者元数据丰富得多。</li>
+              <li>程序五步生命周期：编写 → 编译 → 加载（过验证器）→ 挂载 → 运行。</li>
+            </ul>
+          </div>
+          <div class="pager"><button class="prev" data-goto="0">← 上一章</button><button class="next" data-goto="2">下一章：第一个程序 →</button></div>
+        </section>
+
+        <!-- ================= 第 3 章 ================= -->
+        <section class="chapter" data-ch="2">
+          <div class="ch-kicker">Chapter 03 · 动手</div>
+          <h2 class="ch-title">第一个 eBPF 程序：工具链与 CO-RE</h2>
+          <p class="ch-lede">这一章走通完整链路：写一个丢弃 ICMP 包的 XDP 程序，用 clang 编译、bpftool 加载、ping 验证效果；然后看现代的标准姿势——libbpf + CO-RE，为什么你不该再用 BCC 写新项目。</p>
+
+          <h3>3.1 环境准备</h3>
+          <div class="codeblock">
+            <div class="cb-head"><span class="dot"></span>实验机准备（Debian/Ubuntu 系）</div>
+            <pre><code><span class="tok-c"># 内核 ≥ 5.10，自带 BTF 是 CO-RE 的前提（多数发行版默认开启 CONFIG_DEBUG_INFO_BTF=y）</span>
+uname -r
+ls /sys/kernel/btf/vmlinux          <span class="tok-c"># 文件存在 = 内核 BTF 可用</span>
+
+sudo apt install -y clang llvm libbpf-dev bpftool linux-tools-common \
+                    libelf-dev zlib1g-dev pkg-config
+clang --version   <span class="tok-c"># ≥ 14 为佳</span></code></pre>
+          </div>
+
+          <h3>3.2 内核态代码：drop_icmp.bpf.c</h3>
+          <p>XDP 程序的骨架永远是同一套路：<strong>取指针 → 边界检查 → 解析包头 → 做决定</strong>。注意每一次解引用前的边界检查不是风格问题，是验证器的硬性要求（第 4 章细讲）。</p>
+          <div class="codeblock">
+            <div class="cb-head"><span class="dot"></span>drop_icmp.bpf.c — 丢弃所有 ICMP 包</div>
+            <pre><code><span class="tok-k">#include</span> &lt;linux/bpf.h&gt;
+<span class="tok-k">#include</span> &lt;linux/if_ether.h&gt;
+<span class="tok-k">#include</span> &lt;linux/ip.h&gt;
+<span class="tok-k">#include</span> &lt;linux/icmp.h&gt;
+<span class="tok-k">#include</span> &lt;bpf/bpf_helpers.h&gt;
+<span class="tok-k">#include</span> &lt;bpf/bpf_endian.h&gt;
+
+<span class="tok-f">SEC</span>(<span class="tok-s">"xdp"</span>)
+int <span class="tok-f">xdp_drop_icmp</span>(struct xdp_md *ctx)
+{
+    <span class="tok-k">void</span> *data     = (<span class="tok-k">void</span> *)(<span class="tok-k">long</span>)ctx-&gt;data;
+    <span class="tok-k">void</span> *data_end = (<span class="tok-k">void</span> *)(<span class="tok-k">long</span>)ctx-&gt;data_end;
+
+    <span class="tok-k">struct</span> ethhdr *eth = data;
+    <span class="tok-k">if</span> ((<span class="tok-k">void</span> *)(eth + 1) &gt; data_end)
+        <span class="tok-k">return</span> XDP_PASS;                    <span class="tok-c">// 帧不完整，放行（其实是坏包，交给上层丢）</span>
+
+    <span class="tok-k">if</span> (eth-&gt;h_proto != <span class="tok-f">bpf_htons</span>(ETH_P_IP))
+        <span class="tok-k">return</span> XDP_PASS;                    <span class="tok-c">// 只关心 IPv4</span>
+
+    <span class="tok-k">struct</span> iphdr *ip = (<span class="tok-k">void</span> *)(eth + 1);
+    <span class="tok-k">if</span> ((<span class="tok-k">void</span> *)(ip + 1) &gt; data_end)
+        <span class="tok-k">return</span> XDP_PASS;
+
+    <span class="tok-k">if</span> (ip-&gt;protocol == IPPROTO_ICMP)
+        <span class="tok-k">return</span> XDP_DROP;                    <span class="tok-c">// 在驱动层直接丢弃，skb 都不会分配</span>
+
+    <span class="tok-k">return</span> XDP_PASS;
+}
+
+<span class="tok-k">char</span> LICENSE[] <span class="tok-f">SEC</span>(<span class="tok-s">"license"</span>) = <span class="tok-s">"GPL"</span>;   <span class="tok-c">// 部分 helper 要求 GPL 兼容许可证</span></code></pre>
+          </div>
+
+          <h3>3.3 编译、加载、验证效果</h3>
+          <div class="codeblock">
+            <div class="cb-head"><span class="dot"></span>编译与挂载（先用 bpftool 把流程跑通）</div>
+            <pre><code>clang -O2 -g -target bpf -c drop_icmp.bpf.c -o drop_icmp.bpf.o
+
+<span class="tok-c"># 挂载到网卡 eth0（generic 模式不挑驱动，实验优先；native 模式见第 6 章）</span>
+sudo ip link set dev eth0 xdp obj drop_icmp.bpf.o sec xdp
+
+sudo bpftool prog show            <span class="tok-c"># 能看到程序 id、类型、JIT 状态</span>
+ping -c 3 127.0.0.1               <span class="tok-c"># 若挂在 lo 上则全部超时 —— ICMP 已被丢弃</span>
+sudo ip link set dev eth0 xdp off <span class="tok-c"># 卸载</span></code></pre>
+          </div>
+          <div class="callout warn">
+            <span class="co-title">实验安全提示</span>
+            在远程云主机上练习 XDP/TC 时，<strong>不要对着你 SSH 所走的那块网卡做 DROP 实验</strong>，把自己锁在门外是每个 eBPF 初学者的成人礼。优先用 <code>lo</code>、veth 对或网络命名空间里的虚拟网卡练习（第 10 章会搭一套完整的命名空间实验环境）。
+          </div>
+
+          <h3>3.4 现代姿势：libbpf + CO-RE + 骨架代码</h3>
+          <p>bpftool 手动加载只适合实验。真实项目（包括你的沙箱网关）用 <strong>libbpf</strong> 做加载器：一个用户态程序负责打开 .bpf.o、建 Map、加载、挂载、再与 Map 交互下发策略。三个关键概念：</p>
+          <ul>
+            <li><strong>CO-RE（Compile Once – Run Everywhere）</strong>：程序读取内核结构体字段时，偏移量在目标机器上按其 BTF 信息<em>运行时重定位</em>。同一份 .bpf.o 不必为每个内核版本重新编译——这是 BCC 时代"部署即编译"痛点的终结。</li>
+            <li><strong>vmlinux.h</strong>：由 <code>bpftool btf dump file /sys/kernel/btf/vmlinux format c</code> 生成，包含当前内核全部结构体定义，代替零散的内核头文件。</li>
+            <li><strong>骨架（skeleton）</strong>：<code>bpftool gen skeleton prog.bpf.o</code> 生成一个头文件，把"打开/加载/挂载/Map 访问"封装成 <code>prog_bpf__open_and_load()</code> 这类强类型函数，用户态代码像调普通库一样使用。</li>
+          </ul>
+          <div class="codeblock">
+            <div class="cb-head"><span class="dot"></span>用户态加载器骨架（libbpf 风格，节选）</div>
+            <pre><code><span class="tok-k">#include</span> <span class="tok-s">"drop_icmp.skel.h"</span>   <span class="tok-c">// bpftool gen skeleton 生成</span>
+
+<span class="tok-k">int</span> <span class="tok-f">main</span>(<span class="tok-k">void</span>)
+{
+    <span class="tok-k">struct</span> drop_icmp_bpf *skel = <span class="tok-f">drop_icmp_bpf__open_and_load</span>();
+    <span class="tok-k">if</span> (!skel) <span class="tok-k">return</span> 1;                       <span class="tok-c">// 加载失败：验证器日志在这里输出</span>
+
+    <span class="tok-c">// 把 XDP 程序挂到 ifindex=2 的网卡上</span>
+    <span class="tok-k">int</span> ifindex = <span class="tok-f">if_nametoindex</span>(<span class="tok-s">"eth0"</span>);
+    <span class="tok-f">bpf_program__attach_xdp</span>(skel-&gt;progs.xdp_drop_icmp, ifindex);
+
+    <span class="tok-c">// …进程常驻，期间通过 skel-&gt;maps.xxx 与内核态共享数据…</span>
+    <span class="tok-f">sleep</span>(60);
+    <span class="tok-f">drop_icmp_bpf__destroy</span>(skel);
+}</code></pre>
+          </div>
+          <p>语言选择：加载器可以用 C（libbpf 本体）、Go（cilium/ebpf 库，Cilium 项目同款）或 Rust（libbpf-rs / aya）。<strong>内核态逻辑永远是 C（或 Rust/aya）编译的字节码</strong>；用户态加载器选什么，取决于你现有系统的技术栈——沙箱网关若是 Go/Rust 写的，加载器就用同语言的库融进去，第 10 章的实战设计即按此组织。</p>
+
+          <div class="ch-summary">
+            <h4>本章小结</h4>
+            <ul>
+              <li>XDP 程序套路：取 data/data_end → 逐层边界检查 → 解析 → 返回动作。</li>
+              <li>实验用 bpftool/ip 命令加载即可；生产用 libbpf + 骨架代码。</li>
+              <li>CO-RE 靠 BTF 在加载时重定位字段偏移，实现一次编译到处运行。</li>
+            </ul>
+          </div>
+          <div class="pager"><button class="prev" data-goto="1">← 上一章</button><button class="next" data-goto="3">下一章：验证器 →</button></div>
+        </section>
+
+        <!-- ================= 第 4 章 ================= -->
+        <section class="chapter" data-ch="3">
+          <div class="ch-kicker">Chapter 04 · 内功（上）</div>
+          <h2 class="ch-title">验证器：eBPF 的安全边界与编程纪律</h2>
+          <p class="ch-lede">验证器是 eBPF 的灵魂：它在加载时模拟执行你的字节码，追踪每个寄存器的取值范围，证明程序"最多执行有限步、只访问合法内存、类型始终自洽"。理解它的检查逻辑，是从"抄例子"到"自己写转发面"的分水岭——因为你写的大部分时间，是在和它谈判。</p>
+
+          <h3>4.1 验证器到底在查什么</h3>
+          <ul>
+            <li><strong>内存安全</strong>：包内存访问必须先与 <code>data_end</code> 比较过界；Map 查表返回的指针必须先判空再解引用；栈访问不许越过 512 字节栈帧；上下文结构体只许读规定的字段。</li>
+            <li><strong>类型安全</strong>：指针和整数不能混着算。指向包的指针加一个"范围已证明有界"的整数还是包指针；包指针直接乘、除、或与另一个指针相减——拒绝。</li>
+            <li><strong>必然终止</strong>：不允许无界循环；循环必须能让验证器推断出上界（内核 5.3+ 支持有界循环，单程序指令复杂度上限 100 万条）。</li>
+            <li><strong>资源纪律</strong>：单程序最多 512 字节栈；尾调用链最多 33 层；helper 函数只能用当前程序类型被授权的那批。</li>
+          </ul>
+
+          <h3>4.2 亲手感受：三段代码的验证命运</h3>
+          <p>下面三段代码做的是同一件事——解析 IPv4 头并读取协议号。选一段，点"提交验证"，看验证器逐项检查的过程与最终裁决。</p>
+
+          <div class="demo">
+            <div class="demo-head"><span class="demo-tag">交互演示</span><h4>验证器模拟器</h4></div>
+            <div class="demo-body">
+              <div class="verifier-grid">
+                <div>
+                  <div class="snippet-pick" id="snippetPick"></div>
+                  <div class="codeblock" style="margin:0">
+                    <div class="cb-head"><span class="dot"></span><span id="snippetName">snippet.c</span></div>
+                    <pre><code id="snippetCode"></code></pre>
+                  </div>
+                </div>
+                <div>
+                  <ul class="v-checks" id="vChecks"></ul>
+                  <div class="v-verdict" id="vVerdict"></div>
+                  <div class="v-log" id="vLog"></div>
+                </div>
+              </div>
+              <div style="margin-top:14px; display:flex; gap:8px;">
+                <button class="btn" id="vRun">提交验证 →</button>
+                <button class="btn ghost" id="vReset">重置</button>
+              </div>
+            </div>
+            <div class="demo-foot">真实验证失败时，用 <code>bpftool prog load ... </code> 或 libbpf 的日志回调能拿到逐指令的寄存器状态转储。读日志的方法：从最后一行（报错点）往上倒着看寄存器范围标注，如 <code>R2=pkt(id=0,off=14,r=14)</code> 表示 R2 是包指针、已验证可读范围只有 14 字节。</div>
+          </div>
+
+          <h3>4.3 让验证器满意的六个习惯</h3>
+          <ol>
+            <li><strong>先检查、后使用，顺序不能反</strong>：验证器是路径敏感的——在某个分支里检查过界，只对该分支成立。</li>
+            <li><strong>用 <code>if ((void *)(p + 1) &gt; data_end)</code> 的固定句式检查包边界</strong>，别自创比较方式让验证器猜不透。</li>
+            <li><strong>变长包头别硬算偏移</strong>：IPv4 头长在 <code>ihl</code> 字段里，先掩码（<code>&amp; 0xF</code>）把范围收窄到验证器可证明的区间，再做指针运算。</li>
+            <li><strong>循环写成 <code>for</code> 且上界是常数</strong>，或改用 <code>bpf_loop()</code> helper（5.17+）；处理变长选项时优先想"能不能不循环"。</li>
+            <li><strong>大结构体不要放栈上</strong>：512 字节很快用完；大块临时存储用 per-CPU 数组 Map 当"草稿纸"。</li>
+            <li><strong>Map 查表结果立刻判空</strong>：<code>__u64 *v = bpf_map_lookup_elem(...); if (!v) return ...;</code> 写成肌肉记忆。</li>
+          </ol>
+
+          <div class="callout key">
+            <span class="co-title">心智模型</span>
+            把验证器想象成一位极其严谨但缺乏想象力的审查员：它不相信任何"显然成立"的事实，只相信能在当前路径上<em>推导</em>出来的事实。你的工作不是"让代码正确"，而是"让正确性可被推导"。写得过验证器的代码，往往顺带也被迫把边界情况都想清楚了——这是 eBPF 代码质量普遍不错的原因。
+          </div>
+
+          <div class="ch-summary">
+            <h4>本章小结</h4>
+            <ul>
+              <li>验证器查四件事：内存安全、类型安全、必然终止、资源纪律。</li>
+              <li>包访问先验界、Map 指针先判空、循环必有界——三大纪律。</li>
+              <li>读验证日志从报错行往上倒推寄存器状态，是核心排障技能。</li>
+            </ul>
+          </div>
+          <div class="pager"><button class="prev" data-goto="2">← 上一章</button><button class="next" data-goto="4">下一章：Maps →</button></div>
+        </section>
+
+        <!-- ================= 第 5 章 ================= -->
+        <section class="chapter" data-ch="4">
+          <div class="ch-kicker">Chapter 05 · 内功（下）</div>
+          <h2 class="ch-title">Maps：数据面的状态与控制面的把手</h2>
+          <p class="ch-lede">BPF 程序本身是无状态的纯函数，跑完一次就"忘"了。所有需要跨包保留的东西——策略表、连接状态、统计计数——都住在 Map 里。转发面的设计，一大半是 Map 的设计。</p>
+
+          <h3>5.1 Map 的本质</h3>
+          <p>Map 是内核管理的键值存储，两个访问面：</p>
+          <ul>
+            <li><strong>BPF 程序侧</strong>：<code>bpf_map_lookup_elem / update_elem / delete_elem</code>，在包处理路径上以接近内存访问的速度查表；</li>
+            <li><strong>用户态侧</strong>：通过 Map 的文件描述符用 <code>bpf()</code> 系统调用读写——控制面下发策略、读计数，走的就是这里。</li>
+          </ul>
+          <p>定义方式（现代 BTF 风格，写在 .bpf.c 里，随程序一起加载）：</p>
+          <div class="codeblock">
+            <div class="cb-head"><span class="dot"></span>两个最常用的 Map 定义</div>
+            <pre><code><span class="tok-c">// 策略表：目标网段 → 动作。LRU_HASH 满时自动淘汰最久未用项，适合连接类状态</span>
+<span class="tok-k">struct</span> {
+    __uint(type, BPF_MAP_TYPE_LRU_HASH);
+    __uint(max_entries, 65536);
+    __type(key, <span class="tok-k">struct</span> flow_key);
+    __type(value, <span class="tok-k">struct</span> policy_val);
+} policy_map <span class="tok-f">SEC</span>(<span class="tok-s">".maps"</span>);
+
+<span class="tok-c">// 计数表：每 CPU 独立副本避免原子竞争，读时由用户态求和（写多读少的统计首选）</span>
+<span class="tok-k">struct</span> {
+    __uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
+    __uint(max_entries, 4);              <span class="tok-c">// 下标 0..3 分别表示 PASS/DROP/NAT/ERR</span>
+    __type(key, __u32);
+    __type(value, __u64);
+} stats_map <span class="tok-f">SEC</span>(<span class="tok-s">".maps"</span>);</code></pre>
+          </div>
+
+          <h3>5.2 选型表：转发面常用的 Map 类型</h3>
+          <div class="table-wrap">
+            <table>
+              <tr><th>类型</th><th>结构</th><th>转发面典型用途</th></tr>
+              <tr><td><code>ARRAY</code></td><td>定长数组，下标即键</td><td>计数器、按 ifindex 索引的配置、全局开关</td></tr>
+              <tr><td><code>PERCPU_ARRAY / HASH</code></td><td>每 CPU 一份副本</td><td>高频计数：无锁无原子，吞吐拉满</td></tr>
+              <tr><td><code>HASH</code></td><td>任意键哈希表</td><td>精确策略、会话表（条目数需可控）</td></tr>
+              <tr><td><code>LRU_HASH</code></td><td>满时淘汰最久未用项</td><td>连接跟踪表：天然防打满，冷连接自动老化</td></tr>
+              <tr><td><code>LPM_TRIE</code></td><td>最长前缀匹配树</td><td>按网段匹配策略：10.0.0.0/8 这类规则一条搞定</td></tr>
+              <tr><td><code>DEVMAP / CPUMAP</code></td><td>值是设备 / CPU</td><td><code>XDP_REDIRECT</code> 的目标表：把包批量送往指定网卡</td></tr>
+              <tr><td><code>RINGBUF</code>（5.8+）</td><td>环形缓冲区</td><td>向用户态上报事件：被拒连接日志、审计流（替代老的 perf buffer）</td></tr>
+              <tr><td><code>PROG_ARRAY</code></td><td>值是程序 fd</td><td>尾调用 <code>bpf_tail_call</code>：把大程序拆成链（单程序复杂度上限的绕法）</td></tr>
+            </table>
+          </div>
+
+          <h3>5.3 亲手感受：同一个 Map 的两个访问面</h3>
+          <p>下面的实验台模拟一张策略 Map。左边是 Map 的实时内容；右边上下两块分别是<strong>用户态（控制面）</strong>和<strong>BPF 程序（数据面）</strong>的操作——注意看日志里两边调用的函数名差异。</p>
+
+          <div class="demo">
+            <div class="demo-head"><span class="demo-tag">交互演示</span><h4>Map 实验台：policy_map</h4></div>
+            <div class="demo-body">
+              <div class="map-lab">
+                <div class="map-table">
+                  <div class="mt-head">BPF_MAP_TYPE_HASH · <b>policy_map</b> · key=目标IP value=动作</div>
+                  <div class="map-rows" id="mapRows"></div>
+                </div>
+                <div class="map-ops">
+                  <div class="op-box">
+                    <h5>用户态 · 控制面</h5>
+                    <p>网关程序调用 <code>bpf_map_update_elem()</code> 下发 / 撤销策略：</p>
+                    <div class="row">
+                      <select id="opIp">
+                        <option>203.0.113.10</option>
+                        <option>198.51.100.7</option>
+                        <option>192.0.2.44</option>
+                        <option>10.66.0.2</option>
+                      </select>
+                      <select id="opAction">
+                        <option value="ALLOW">ALLOW 放行</option>
+                        <option value="DENY">DENY 拒绝</option>
+                        <option value="NAT">NAT 转发</option>
+                      </select>
+                      <button class="btn small" id="opUpdate">写入策略</button>
+                      <button class="btn small ghost" id="opDelete">删除</button>
+                    </div>
+                  </div>
+                  <div class="op-box">
+                    <h5>BPF 程序 · 数据面</h5>
+                    <p>来一个去往该 IP 的包时，程序调用 <code>bpf_map_lookup_elem()</code> 查表决定命运：</p>
+                    <div class="row">
+                      <select id="pktIp">
+                        <option>203.0.113.10</option>
+                        <option>198.51.100.7</option>
+                        <option>192.0.2.44</option>
+                        <option>10.66.0.2</option>
+                        <option>8.8.8.8</option>
+                      </select>
+                      <button class="btn small" id="opLookup">模拟一个包到达</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="lab-log" id="mapLog"></div>
+            </div>
+            <div class="demo-foot">关键直觉：<strong>查不到（返回 NULL）时程序走默认策略</strong>——沙箱场景应设为默认拒绝。这也是为什么实验台里 8.8.8.8 没有任何条目却依然"有结果"。</div>
+          </div>
+
+          <h3>5.4 Pin：让 Map 活得比进程久</h3>
+          <p>Map 默认随引用计数归零而销毁。把 Map（或程序）<span class="term">pin</span> 到 <code>/sys/fs/bpf/</code> 文件系统，就能让它脱离加载器进程独立存在：网关进程重启升级时，转发面与连接状态不中断；多个程序也能通过 pin 路径共享同一张 Map。生产部署里"程序 pin + Map pin + 加载器只负责更新内容"是常见形态。</p>
+          <div class="codeblock">
+            <div class="cb-head"><span class="dot"></span>pin 与共享</div>
+            <pre><code>sudo bpftool map pin id 42 /sys/fs/bpf/sandbox/policy_map
+sudo bpftool map dump pinned /sys/fs/bpf/sandbox/policy_map   <span class="tok-c"># 任何进程都能读这张表排障</span></code></pre>
+          </div>
+
+          <div class="ch-summary">
+            <h4>本章小结</h4>
+            <ul>
+              <li>程序无状态、Map 有状态：策略、连接、计数都设计成 Map。</li>
+              <li>连接跟踪用 LRU_HASH，网段策略用 LPM_TRIE，高频计数用 PERCPU，事件上报用 RINGBUF。</li>
+              <li>查表落空必须有明确默认策略；pin 让 Map 跨进程、跨重启存活。</li>
+            </ul>
+          </div>
+          <div class="pager"><button class="prev" data-goto="3">← 上一章</button><button class="next" data-goto="5">下一章：XDP →</button></div>
+        </section>
+
+        <!-- ================= 第 6 章 ================= -->
+        <section class="chapter" data-ch="5">
+          <div class="ch-kicker">Chapter 06 · 武器（上）</div>
+          <h2 class="ch-title">XDP：驱动层的高速入口</h2>
+          <p class="ch-lede">XDP（eXpress Data Path）把 BPF 程序挂在网卡驱动的收包路径最前端——包还在 DMA 环形队列里、skb 尚未分配时就先过你的代码。这是 Linux 网络栈里能合法放逻辑的最早位置，也是它性能的来源。</p>
+
+          <h3>6.1 五个动作与三种模式</h3>
+          <div class="table-wrap">
+            <table>
+              <tr><th>动作</th><th>含义</th><th>典型场景</th></tr>
+              <tr><td><code>XDP_DROP</code></td><td>在驱动层丢弃，统计可见、上层无感</td><td>DDoS 清洗、入口黑名单</td></tr>
+              <tr><td><code>XDP_PASS</code></td><td>交回正常协议栈</td><td>不关心的包</td></tr>
+              <tr><td><code>XDP_TX</code></td><td>从同一网卡原路发回</td><td>负载均衡回包、反射式服务</td></tr>
+              <tr><td><code>XDP_REDIRECT</code></td><td>送往 DEVMAP/CPUMAP 指定的设备/CPU/AF_XDP socket</td><td>转发到另一网卡、送用户态高速通道</td></tr>
+              <tr><td><code>XDP_ABORTED</code></td><td>异常丢弃（语义同 DROP，单独计数便于排障）</td><td>程序内部错误路径</td></tr>
+            </table>
+          </div>
+          <ul>
+            <li><strong>native（驱动）模式</strong>：驱动实现了 XDP 回调（如 mlx5、i40e、virtio_net），性能全开；</li>
+            <li><strong>generic（SKB）模式</strong>：在协议栈早期模拟 XDP 语义，任何网卡可用，性能打折——实验与 veth 场景常用；</li>
+            <li><strong>offload 模式</strong>：程序直接跑在智能网卡上（如 Netronome），少见。</li>
+          </ul>
+          <p>改包能力：XDP 可以改写包头（配合 <code>bpf_xdp_adjust_head / tail / meta</code> 增删空间），Facebook 的 Katran 负载均衡器、Cilium 的入口加速都建立在此之上。但 XDP 没有 skb 元数据、没有完整的路由与连接跟踪上下文，所以<strong>复杂转发（如带 NAT 的沙箱出口）通常不放在 XDP 独扛，而是 XDP 做粗筛 + TC 做精细活</strong>。</p>
+
+          <h3>6.2 亲手感受：规则如何改变包的命运</h3>
+          <p>给每类流量选一个动作，然后放行一批混合包流，观察分流结果与计数器。把 HTTPS 设成 TX 试试——想想为什么真实系统里很少这么干（提示：回包的源/目的还没改写过）。</p>
+
+          <div class="demo">
+            <div class="demo-head"><span class="demo-tag">交互演示</span><h4>XDP 动作实验台</h4></div>
+            <div class="demo-body">
+              <div class="xdp-rules" id="xdpRules"></div>
+              <div style="display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap;">
+                <button class="btn" id="xdpRun">放行一批包（12 个）</button>
+                <button class="btn ghost" id="xdpClear">清空计数</button>
+              </div>
+              <div class="xdp-stage">
+                <div class="xdp-lane"><span class="lane-label">到达 →</span><span id="laneIn"></span></div>
+                <div class="xdp-lane"><span class="lane-label">裁决 →</span><span id="laneOut"></span></div>
+              </div>
+              <div class="xdp-counters">
+                <div class="counter c-pass"><span class="n" id="cntPass">0</span><span class="l">XDP_PASS 上协议栈</span></div>
+                <div class="counter c-drop"><span class="n" id="cntDrop">0</span><span class="l">XDP_DROP 驱动层丢弃</span></div>
+                <div class="counter c-tx"><span class="n" id="cntTx">0</span><span class="l">XDP_TX 原路发回</span></div>
+              </div>
+            </div>
+            <div class="demo-foot">真实系统里查看这些计数：<code>bpftool prog show</code> 看程序，计数 Map 用 <code>bpftool map dump</code> 读；ethtool -S 也能看到驱动层的 xdp_drop 等统计。</div>
+          </div>
+
+          <h3>6.3 在 veth 上用 XDP 的注意事项</h3>
+          <ul>
+            <li>veth 支持 XDP（generic 与 native 均可，native 需要对端配合 <code>xdp_redirect</code> 语义），但沙箱场景 veth 两端常分属不同 netns，挂载时要在对应命名空间里操作；</li>
+            <li>XDP 程序改包后若长度变化，记得没有 skb 的"自动修正"——校验和全靠自己调 helper 维护；</li>
+            <li>入口 XDP 非常适合做沙箱的<strong>第一道粗筛</strong>：协议白名单、速率计数、异常包丢弃，剩下的交给 TC。</li>
+          </ul>
+
+          <div class="ch-summary">
+            <h4>本章小结</h4>
+            <ul>
+              <li>XDP 在驱动收包最前端运行，五种动作决定包的命运，快源于"skb 之前"。</li>
+              <li>能力边界：能改包能重定向，但无 skb 元数据、无连接上下文。</li>
+              <li>分工原则：XDP 粗筛，TC 精细转发——这正是第 10 章实战的布局。</li>
+            </ul>
+          </div>
+          <div class="pager"><button class="prev" data-goto="4">← 上一章</button><button class="next" data-goto="6">下一章：TC BPF →</button></div>
+        </section>
+
+        <!-- ================= 第 7 章 ================= -->
+        <section class="chapter" data-ch="6">
+          <div class="ch-kicker">Chapter 07 · 武器（下）</div>
+          <h2 class="ch-title">TC BPF：转发面的主力</h2>
+          <p class="ch-lede">如果 XDP 是大门口的安检，TC（Traffic Control）BPF 就是楼内的调度中心：每个网络设备 ingress/egress 各一个挂载点，上下文是完整的 skb，能查路由、能改包、能把包重定向到任意设备——包括把包"塞进"veth 对端、送进沙箱的命名空间。Cilium 的数据面主体、几乎所有 eBPF 转发方案，都以 TC 为骨架。</p>
+
+          <h3>7.1 挂载方式：clsact + direct-action</h3>
+          <div class="codeblock">
+            <div class="cb-head"><span class="dot"></span>给 veth 挂上 TC BPF 程序</div>
+            <pre><code><span class="tok-c"># clsact 是专为 BPF 准备的 qdisc，同时提供 ingress 与 egress 两个钩子</span>
+sudo tc qdisc add dev veth-guest clsact
+
+<span class="tok-c"># da = direct-action：程序返回值直接作为动作，不再经额外的 action 对象</span>
+sudo tc filter add dev veth-guest ingress bpf da obj fwd.bpf.o sec tc/ingress
+sudo tc filter add dev veth-guest egress  bpf da obj fwd.bpf.o sec tc/egress
+
+sudo tc filter show dev veth-guest ingress   <span class="tok-c"># 查看已挂载的过滤器</span></code></pre>
+          </div>
+          <p>现代替代方案是 <strong>tcx</strong>（内核 6.6+ 的 <code>bpf_link</code> 式挂载，<code>bpf_program__attach_tcx()</code>），生命周期与排序管理更干净；传统 tc 命令行方式则在所有存量内核上可用。本教程代码用 tc 语义讲解，libbpf 中两者可切换。</p>
+
+          <h3>7.2 __sk_buff 能给你什么</h3>
+          <div class="table-wrap">
+            <table>
+              <tr><th>字段 / 能力</th><th>说明</th><th>转发面用途</th></tr>
+              <tr><td><code>skb-&gt;ifindex / ingress_ifindex</code></td><td>当前设备 / 包进入的设备</td><td>判断方向：是沙箱出站还是入站</td></tr>
+              <tr><td><code>skb-&gt;mark</code></td><td>32 位标记，可读写，与策略路由/iptables 互通</td><td>给包打标，后续路径凭标记分流（两段式 NAT 的常用手法）</td></tr>
+              <tr><td><code>bpf_skb_store_bytes / load_bytes</code></td><td>按偏移读写包数据（自动处理非线性 skb）</td><td>改 IP/端口——NAT 的核心动作</td></tr>
+              <tr><td><code>bpf_l3_csum_replace / bpf_l4_csum_replace</code></td><td>增量更新校验和</td><td>改地址/端口后修 IP 头与 TCP/UDP 校验和</td></tr>
+              <tr><td><code>bpf_redirect(ifindex, flags)</code></td><td>把包送往另一设备；<code>BPF_F_INGRESS</code> 让包以"从对端收到"的姿态出现</td><td>veth 对穿透：沙箱 ↔ 网关 的搬运工</td></tr>
+              <tr><td><code>bpf_fib_lookup()</code></td><td>在 BPF 内查 FIB 路由表，得到出口与邻居 MAC</td><td>自己做转发决策而不必绕回协议栈</td></tr>
+              <tr><td><code>bpf_skb_change_head / tail</code></td><td>增删包头空间</td><td>加封装（VXLAN/Geneve 头）做隧道转发</td></tr>
+            </table>
+          </div>
+
+          <h3>7.3 一个最小转发程序</h3>
+          <p>场景：宿主机侧 veth（<code>veth-guest</code>）的 ingress 收到沙箱发出的包，查策略后原样重定向到网关侧设备。先求骨架，NAT 在下一章补上：</p>
+          <div class="codeblock">
+            <div class="cb-head"><span class="dot"></span>fwd.bpf.c — TC 入口：查策略 + 重定向</div>
+            <pre><code><span class="tok-k">#include</span> <span class="tok-s">"vmlinux.h"</span>
+<span class="tok-k">#include</span> &lt;bpf/bpf_helpers.h&gt;
+<span class="tok-k">#include</span> &lt;bpf/bpf_endian.h&gt;
+
+<span class="tok-k">#define</span> TC_ACT_OK   0
+<span class="tok-k">#define</span> TC_ACT_SHOT 2
+<span class="tok-k">#define</span> GW_IFINDEX  5        <span class="tok-c">// 实际项目中由用户态在加载后写入配置 Map，不要写死</span>
+
+<span class="tok-f">SEC</span>(<span class="tok-s">"tc/ingress"</span>)
+int <span class="tok-f">fwd_ingress</span>(<span class="tok-k">struct</span> __sk_buff *skb)
+{
+    <span class="tok-k">struct</span> ethhdr eth;
+    <span class="tok-k">if</span> (<span class="tok-f">bpf_skb_load_bytes</span>(skb, 0, &amp;eth, <span class="tok-k">sizeof</span>(eth)) &lt; 0)
+        <span class="tok-k">return</span> TC_ACT_SHOT;
+    <span class="tok-k">if</span> (eth.h_proto != <span class="tok-f">bpf_htons</span>(ETH_P_IP))
+        <span class="tok-k">return</span> TC_ACT_OK;                    <span class="tok-c">// 非 IPv4 交回协议栈处理</span>
+
+    <span class="tok-c">// …查 policy_map（第 5 章）：落空或 DENY → TC_ACT_SHOT…</span>
+    <span class="tok-c">// …建连接跟踪、做 NAT（第 8 章）…</span>
+
+    <span class="tok-c">// 以 ingress 姿态送入网关设备：对端看起来就像"从线上收到了这个包"</span>
+    <span class="tok-k">return</span> <span class="tok-f">bpf_redirect</span>(GW_IFINDEX, BPF_F_INGRESS);
+}
+
+<span class="tok-k">char</span> LICENSE[] <span class="tok-f">SEC</span>(<span class="tok-s">"license"</span>) = <span class="tok-s">"GPL"</span>;</code></pre>
+          </div>
+
+          <div class="callout info">
+            <span class="co-title">TC 与 XDP 里读包方式不同</span>
+            TC 里有两种读包姿势：像 XDP 一样用 <code>data/data_end</code> 直接指针访问（快，但要自己处理 skb 非线性区），或用 <code>bpf_skb_load_bytes</code> 按偏移拷贝（慢一点，永远安全）。改包同理：直接指针写仅限于线性区内的头，通用改法是 <code>bpf_skb_store_bytes</code>。转发面热路径先用 load/store 写对，第二版再优化成直接访问——顺序别反。
+          </div>
+
+          <div class="ch-summary">
+            <h4>本章小结</h4>
+            <ul>
+              <li>TC BPF 挂在每设备的 ingress/egress，上下文 __sk_buff 信息最全，是转发面主力。</li>
+              <li>bpf_redirect + BPF_F_INGRESS 是 veth 穿透的核心动作；fib_lookup 让 BPF 自主查路由。</li>
+              <li>改包三件套：store_bytes 改字段、l3/l4_csum_replace 修校验和、change_head 做封装。</li>
+            </ul>
+          </div>
+          <div class="pager"><button class="prev" data-goto="5">← 上一章</button><button class="next" data-goto="7">下一章：NAT 与连接跟踪 →</button></div>
+        </section>
+
+        <!-- ================= 第 8 章 ================= -->
+        <section class="chapter" data-ch="7">
+          <div class="ch-kicker">Chapter 08 · 核心技术</div>
+          <h2 class="ch-title">转发面三件套：分类、NAT 与连接跟踪</h2>
+          <p class="ch-lede">把前面所有零件拼起来：一个包进入转发面后，要经历"分类 → 查策略 →（必要时）改写地址 → 记录连接 → 送出"，回程包则要"凭连接记录反向改写 → 送回"。这一章把状态机讲清楚，并在实验室里完整走一遍。</p>
+
+          <h3>8.1 包分类：先认出"这是什么包"</h3>
+          <p>解析顺序固定：以太网 → IP（注意 ihl 变长）→ 传输层端口。产出一个<strong>流键（flow key）</strong>：五元组 <code>{saddr, daddr, sport, dport, proto}</code>。后续所有查表都以它为键。解析代码的纪律来自第 4 章：每层先验界、ihl 先掩码收窄范围。</p>
+
+          <h3>8.2 NAT：改两个字段、修两处校验和、留一条记录</h3>
+          <p>出站 SNAT 的动作清单（以 TCP 为例）：</p>
+          <ol>
+            <li>分配外部端口：从端口池取一个未用端口（常见做法：源端口哈希 + 冲突线性探测，或直接沿用源端口、冲突时才换）；</li>
+            <li>改写源 IP → 网关外网 IP、源端口 → 分配端口，增量更新 IP 头校验和与 TCP 校验和；</li>
+            <li>在连接跟踪表里写入正向条目 <code>五元组 → {nat_ip, nat_port}</code>，同时写反向条目供回程查；</li>
+            <li>回程包到达：以回程五元组查反向条目，改回目的 IP/端口，同样修两处校验和，送回沙箱。</li>
+          </ol>
+          <div class="codeblock">
+            <div class="cb-head"><span class="dot"></span>连接跟踪 Map 与改写（节选，TC 侧）</div>
+            <pre><code><span class="tok-k">struct</span> flow_key {
+    __u32 saddr, daddr;
+    __u16 sport, dport;
+    __u8  proto, pad[3];
+};
+<span class="tok-k">struct</span> nat_val { __u32 addr; __u16 port; __u16 pad; __u64 last_seen; };
+
+<span class="tok-k">struct</span> {
+    __uint(type, BPF_MAP_TYPE_LRU_HASH);
+    __uint(max_entries, 262144);
+    __type(key, <span class="tok-k">struct</span> flow_key);
+    __type(value, <span class="tok-k">struct</span> nat_val);
+} conntrack <span class="tok-f">SEC</span>(<span class="tok-s">".maps"</span>);
+
+<span class="tok-c">// 改源地址的四步（偏移按已解析的 iphdr/tcphdr 位置计算）：</span>
+<span class="tok-c">// 1) bpf_l3_csum_replace(skb, ipoff + offsetof(iphdr, check), old_ip, new_ip, 4);</span>
+<span class="tok-c">// 2) bpf_l4_csum_replace(skb, tcpoff + offsetof(tcphdr, check), old_ip, new_ip, BPF_F_PSEUDO_HDR | 4);</span>
+<span class="tok-c">// 3) bpf_l4_csum_replace(..., old_port, new_port, 2);   // 端口参与 L4 校验和</span>
+<span class="tok-c">// 4) bpf_skb_store_bytes(skb, ipoff + offsetof(iphdr, saddr), &amp;new_ip, 4, 0); 再写端口</span>
+<span class="tok-c">// 顺序要点：先用旧值算增量校验和，最后才覆盖字段本身。</span></code></pre>
+          </div>
+          <div class="callout warn">
+            <span class="co-title">NAT 的三个经典坑</span>
+            ① <strong>UDP 校验和为 0</strong>（IPv4 允许）时不要"修"出一个非零错误值，要么整体重算要么保持 0；② <strong>ICMP 差错报文</strong>内嵌了原始 IP 头，NAT 后内层也要改，否则对端收到对不上的报文（进阶课题，实验阶段可先放行直通）；③ <strong>分片包</strong>只有首片有传输层头，非首片要靠分片缓存或直接放行——生产系统（如 Cilium）对此有专门处理，入门版先明确记录这一限制。
+          </div>
+
+          <h3>8.3 实验室：一个包的完整往返</h3>
+          <p>拓扑：沙箱（10.66.0.2）经 veth 到网关转发面，网关外网地址 203.0.113.1。选一个访问目标，逐步推进，看包头如何被改写、连接表如何生长、回程如何凭记录找回沙箱。试完"允许的外网服务"后，再试试"被策略禁止的目标"和"另一个沙箱"。</p>
+
+          <div class="demo">
+            <div class="demo-head"><span class="demo-tag">交互演示</span><h4>沙箱转发实验室：NAT + 连接跟踪 + 策略</h4></div>
+            <div class="demo-body">
+              <div class="lab-topo" id="labTopo"></div>
+              <div class="lab-controls">
+                <div class="ctl">
+                  <label for="labTarget">沙箱要访问的目标</label>
+                  <select id="labTarget">
+                    <option value="api">外网 API 服务 · 198.51.100.7:443（策略：允许 + NAT）</option>
+                    <option value="peer">另一个沙箱 · 10.66.0.3:8080（策略：允许 · 内网直转）</option>
+                    <option value="bad">未授权地址 · 192.0.2.99:25（策略：拒绝）</option>
+                  </select>
+                </div>
+                <button class="btn" id="labSend">从沙箱发出一个包</button>
+                <button class="btn ghost" id="labReset">重置实验</button>
+              </div>
+              <div class="hdr-view" id="labHdr"><span class="dim">包头监视器：尚未发包。沙箱内进程发起 connect() 后，包会从 veth 沙箱侧出现在网关侧 TC ingress。</span></div>
+              <div class="step-desc" id="labDesc">选择目标并点击「从沙箱发出一个包」，然后用下方按钮逐步推进。</div>
+              <div class="step-nav">
+                <button class="btn small" id="labPrev">← 上一步</button>
+                <button class="btn small" id="labNext">下一步 →</button>
+                <button class="btn small ghost" id="labAuto">自动播放</button>
+                <span class="step-count" id="labCount"></span>
+              </div>
+              <h4 style="margin:20px 0 8px; font-size:14.5px;">连接跟踪表 conntrack（LRU_HASH）</h4>
+              <div id="labCt"></div>
+            </div>
+            <div class="demo-foot">这正是第 10 章要落地的设计的心脏：TC ingress 上的一个 BPF 程序 + policy_map + conntrack 两张表，就完成了传统上需要"代理进程 + iptables NAT + conntrack 子系统"三者配合的事。</div>
+          </div>
+
+          <h3>8.4 策略维度：不止五元组</h3>
+          <p>Map 的 value 可以任意丰富，策略可以从五元组继续往上叠：<strong>按沙箱身份</strong>（入接口 ifindex 或 cgroup id 作为键的一部分）、<strong>按网段</strong>（LPM_TRIE 最长前缀）、<strong>按速率</strong>（令牌桶状态存 per-CPU Map，超限丢弃）。"按域名放行"这类 L7 语义不在数据面解决——正确姿势是控制面解析域名后把 IP 网段下发到 LPM 策略表，数据面只认 IP。很多沙箱网关的"按域名派生出站许可"，走的正是这条工程分界线。</p>
+
+          <div class="ch-summary">
+            <h4>本章小结</h4>
+            <ul>
+              <li>转发流水线：分类（五元组）→ 策略 → NAT 改写 → 记 conntrack → redirect。</li>
+              <li>NAT 改写四步：先修 L3/L4 校验和（用旧值算增量），最后覆盖字段。</li>
+              <li>L7 语义（域名）留给控制面，数据面只执行 IP 层策略。</li>
+            </ul>
+          </div>
+          <div class="pager"><button class="prev" data-goto="6">← 上一章</button><button class="next" data-goto="8">下一章：可观测与调试 →</button></div>
+        </section>
+
+        <!-- ================= 第 9 章 ================= -->
+        <section class="chapter" data-ch="8">
+          <div class="ch-kicker">Chapter 09 · 运维面</div>
+          <h2 class="ch-title">可观测与调试：看得见的转发面</h2>
+          <p class="ch-lede">数据面在内核里跑，出问题时没有日志文件可 tail。eBPF 的可观测要靠"设计时埋点"：计数 Map、事件 ring buffer、bpftool 内省，三件套缺一不可。这一章把排障工具箱补齐。</p>
+
+          <h3>9.1 第一层：计数器（永远在线）</h3>
+          <p>每个决策分支配一个计数下标：PASS / DROP_POLICY / DROP_PARSE / NAT_OK / NAT_FAIL / CT_MISS……用 PERCPU_ARRAY 实现，热路径零竞争。排障时第一句话永远是 <code>bpftool map dump</code> 看哪条分支在涨——涨在哪，问题就在哪。</p>
+          <div class="codeblock">
+            <div class="cb-head"><span class="dot"></span>程序内埋点（一行宏）</div>
+            <pre><code><span class="tok-k">#define</span> <span class="tok-f">COUNT(idx)</span> <span class="tok-k">do</span> { __u32 k = (idx); __u64 *c = <span class="tok-f">bpf_map_lookup_elem</span>(&amp;stats, &amp;k); \
+                     <span class="tok-k">if</span> (c) __sync_fetch_and_add(c, 1); } <span class="tok-k">while</span> (0)
+<span class="tok-c">// 用法：策略拒绝时 COUNT(DROP_POLICY); return TC_ACT_SHOT;</span></code></pre>
+          </div>
+
+          <h3>9.2 第二层：事件流（按需采样）</h3>
+          <p>计数回答"多少"，事件回答"是谁"。把被拒绝连接的五元组、命中策略 ID 写进 <code>RINGBUF</code>，用户态审计程序实时消费——这就是沙箱"出站访问审计"的标准实现。注意纪律：<strong>只上报低频的异常事件</strong>（拒绝、新建连接），高频的正常转发只计数不上报，否则 ring buffer 反噬性能。</p>
+          <div class="codeblock">
+            <div class="cb-head"><span class="dot"></span>ring buffer 上报（内核 5.8+）</div>
+            <pre><code><span class="tok-k">struct</span> { __uint(type, BPF_MAP_TYPE_RINGBUF); __uint(max_entries, 256 * 1024); } events <span class="tok-f">SEC</span>(<span class="tok-s">".maps"</span>);
+
+<span class="tok-k">struct</span> deny_evt *e = <span class="tok-f">bpf_ringbuf_reserve</span>(&amp;events, <span class="tok-k">sizeof</span>(*e), 0);
+<span class="tok-k">if</span> (e) { e-&gt;key = key; e-&gt;reason = DENY_POLICY; <span class="tok-f">bpf_ringbuf_submit</span>(e, 0); }</code></pre>
+          </div>
+
+          <h3>9.3 第三层：bpftool 内省与 printk 兜底</h3>
+          <div class="table-wrap">
+            <table>
+              <tr><th>命令</th><th>看什么</th></tr>
+              <tr><td><code>bpftool prog show / map show</code></td><td>已加载程序与 Map 清单、id、引用情况</td></tr>
+              <tr><td><code>bpftool prog dump xlated id N</code></td><td>验证器处理后的字节码（重定位后）——确认编译结果</td></tr>
+              <tr><td><code>bpftool prog dump jited id N</code></td><td>JIT 后的本地汇编——性能分析时用</td></tr>
+              <tr><td><code>bpftool net show</code></td><td>各设备上 XDP/TC 程序的挂载情况一览</td></tr>
+              <tr><td><code>bpftool map dump name conntrack</code></td><td>连接表当前内容，NAT 排障第一现场</td></tr>
+              <tr><td><code>bpftool prog profile / feature probe</code></td><td>程序热点采样 / 当前内核支持的程序与 helper 探测</td></tr>
+            </table>
+          </div>
+          <p>最后的兜底是 <code>bpf_printk()</code>：输出到 <code>/sys/kernel/debug/tracing/trace_pipe</code>。它开销大、会拖慢热路径，<strong>只在实验环境用，提交前必须删干净</strong>。抓包验证则用 tcpdump 在 veth 两端对照——包在哪一跳消失，问题就在哪一跳。</p>
+
+          <h3>9.4 转发面排障决策顺序</h3>
+          <ol>
+            <li>程序在不在？<code>bpftool net show</code> 确认挂载点没丢（netns 重建后 TC 挂载会消失，是高频事故源）；</li>
+            <li>包进没进程序？入口计数涨不涨；不涨 → 查路由/veth 状态；</li>
+            <li>走的哪个分支？对照计数增量定位分支；</li>
+            <li>状态对不对？dump conntrack 与 policy 两张表，与预期逐条比对；</li>
+            <li>改写对不对？两端 tcpdump 对照同一包的改前/改后字节。</li>
+          </ol>
+
+          <div class="ch-summary">
+            <h4>本章小结</h4>
+            <ul>
+              <li>三层可观测：计数 Map（永远在线）→ ring buffer 事件（只报异常）→ bpftool 内省。</li>
+              <li>bpf_printk 是实验兜底，生产代码零容忍。</li>
+              <li>排障顺序：挂载 → 入口计数 → 分支计数 → 表内容 → 两端抓包。</li>
+            </ul>
+          </div>
+          <div class="pager"><button class="prev" data-goto="7">← 上一章</button><button class="next" data-goto="9">下一章：实战项目 →</button></div>
+        </section>
+
+        <!-- ================= 第 10 章 ================= -->
+        <section class="chapter" data-ch="9">
+          <div class="ch-kicker">Chapter 10 · 实战</div>
+          <h2 class="ch-title">实战：为沙箱写一个 eBPF 转发面</h2>
+          <p class="ch-lede">终章把所有零件装成一台机器：一个跑在宿主机上的转发面，让沙箱默认与世隔绝、按策略出站、出站经 NAT、入站只放行回程与显式映射。先给完整设计，再给分阶段落地的里程碑——按顺序做，每一阶段都是可运行、可验证的系统。</p>
+
+          <h3>10.1 需求与拓扑</h3>
+          <ul>
+            <li>每个沙箱一个 netns + 一对 veth：沙箱侧 <code>eth0</code>（10.66.i.2/24），宿主机侧 <code>veth-i</code>；</li>
+            <li>出站默认拒绝；控制面按"目标网段 + 端口"下发白名单；允许的流量 SNAT 为宿主机地址出站；</li>
+            <li>入站只允许已建连接的回程包，以及控制面显式配置的端口映射（DNAT）；</li>
+            <li>全程计数 + 拒绝审计；策略变更不重载程序、不中断存量连接。</li>
+          </ul>
+          <div class="fig" role="img" aria-label="数据面布局图：沙箱 netns 内的进程经 eth0 与 veth 对连到宿主机侧的 veth-i，TC ingress 的 fwd_out 程序做分类、策略、NAT 并记连接跟踪，再经 bpf_redirect 从物理口 eth0 发出；回程包由 eth0 入口的 fwd_in 程序查连接跟踪表反向改写后 redirect 回沙箱。控制面网关进程负责建程序、pin Map、写策略、读计数、消费审计 ring buffer">
+            <div class="fig-head"><span class="dot"></span>数据面布局</div>
+            <div class="fig-body">
+              <div class="pano dp">
+                <div>
+                  <div class="zone-tag">沙箱 netns</div>
+                  <div class="fbox">
+                    <div class="fb-title">进程</div>
+                    <div class="fb-sub">eth0 · 10.66.i.2</div>
+                  </div>
+                </div>
+                <div class="pano-links">
+                  <div class="plink">
+                    <span class="pl-k">veth 对</span>
+                    <span class="pl-a">出站 <span class="arr arr-h">──▶</span><span class="arr arr-v">↓</span></span>
+                  </div>
+                  <div class="plink">
+                    <span class="pl-a"><span class="arr arr-h">◀──</span><span class="arr arr-v">↑</span> 回程 redirect</span>
+                  </div>
+                </div>
+                <div>
+                  <div class="zone-tag">宿主机</div>
+                  <div class="fzone">
+                    <div class="vflow">
+                      <div class="fbox">
+                        <div class="fb-title">veth-i</div>
+                        <div class="fb-sub">宿主机侧 veth 端</div>
+                      </div>
+                      <div class="varrow">↓</div>
+                      <div class="fbox hl">
+                        <div class="fb-title">TC ingress · fwd_out 程序</div>
+                        <div class="fb-sub">分类 → 策略 → NAT → 记 CT</div>
+                      </div>
+                      <div class="varrow">↓ <span>bpf_redirect</span></div>
+                      <div class="fbox">
+                        <div class="fb-title">eth0（物理口）</div>
+                        <div class="fb-sub">TC 入口 · fwd_in 程序：查 CT 反向改写</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="fig-strip">
+                <span class="fs-k">控制面</span>
+                <span>网关进程（libbpf）：建程序、pin Map、写 policy、读 stats、消费审计 ringbuf</span>
+              </div>
+              <div class="fig-strip">
+                <span class="fs-k">Maps</span>
+                <span class="map-chips">
+                  <span class="mchip">policy_map <i>LPM_TRIE</i></span>
+                  <span class="mchip">conntrack <i>LRU_HASH</i></span>
+                  <span class="mchip">nat_pool <i>配置</i></span>
+                  <span class="mchip">stats <i>PERCPU</i></span>
+                  <span class="mchip">events <i>RINGBUF</i></span>
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <h3>10.2 为什么这样分工</h3>
+          <ul>
+            <li><strong>TC 而非 XDP 做主转发</strong>：需要 skb 的 mark、fib_lookup 与成熟的 redirect 语义；XDP 可在物理口 ingress 前加一层做粗筛（限速/黑名单），是优化项不是必需项；</li>
+            <li><strong>策略键 = (沙箱标识, 目标网段, 端口)</strong>：沙箱标识用入接口 ifindex（控制面维护映射），策略表用一张 LPM_TRIE 承载网段维度、value 里带端口位图与动作；</li>
+            <li><strong>两段式思想保留</strong>：fwd_out 里先在 policy_map 做"许可判定"、再进 NAT 段，两段之间用 <code>skb-&gt;mark</code> 传递"已许可"标记——与很多现有网关的两段式 NAT 设计同构，迁移心智成本低；</li>
+            <li><strong>控制面唯一写者</strong>：所有 Map 只由网关进程写，BPF 程序只读策略、写自己维护的 conntrack 与计数，避免多写者一致性问题。</li>
+          </ul>
+
+          <h3>10.3 分阶段落地里程碑</h3>
+          <div class="mile">
+            <div class="m-badge">M1</div>
+            <div class="m-body">
+              <h4>打通骨架：命名空间实验环境 + 直通转发</h4>
+              <p>用 ip netns + veth 搭出"沙箱—宿主机"一对，TC 程序只做 redirect 直通，ping/curl 双向通。本阶段验证：工具链、加载器骨架、挂载生命周期（netns 重建后如何自动补挂）。验收：关掉程序包不通、挂上即通。</p>
+            </div>
+          </div>
+          <div class="mile">
+            <div class="m-badge">M2</div>
+            <div class="m-body">
+              <h4>分类与策略：五元组 + LPM 白名单 + 默认拒绝</h4>
+              <p>完成包分类与 policy_map 查询：命中 ALLOW 才 redirect，否则 DROP 并计数、ring buffer 上报审计事件；控制面提供增删策略的接口。验收：白名单外地址全部被拒且审计可见，白名单内正常。</p>
+            </div>
+          </div>
+          <div class="mile">
+            <div class="m-badge">M3</div>
+            <div class="m-body">
+              <h4>NAT 与连接跟踪：出站 SNAT + 回程自动放行</h4>
+              <p>实现第 8 章的改写四步与 conntrack 正/反条目；沙箱以宿主机地址访问外网（先用第二个 netns 冒充外网服务做闭环测试）。验收：外部抓包看到源地址已改写；回程包正确送达；并发多连接端口不冲突；UDP 与 TCP 各测一轮。</p>
+            </div>
+          </div>
+          <div class="mile">
+            <div class="m-badge">M4</div>
+            <div class="m-body">
+              <h4>多沙箱与生命周期：接入真实编排</h4>
+              <p>沙箱创建/销毁时控制面自动完成 veth 建链、程序挂载（或共享程序 + 按 ifindex 分发）、策略与 CT 清理；Map 全部 pin 化，网关进程可滚动重启不丢状态。验收：并发拉起 20 个沙箱各自策略互不串扰；重启网关进程转发不中断。</p>
+            </div>
+          </div>
+          <div class="mile">
+            <div class="m-badge">M5</div>
+            <div class="m-body">
+              <h4>硬化与性能：把坑逐个填上</h4>
+              <p>处理第 8 章三坑（UDP 校验和、ICMP 差错、分片的明确策略）、加每沙箱速率限制（令牌桶 Map）、压测对比 iptables 方案的吞吐与 p99 时延、补齐监控告警（DROP 计数突增告警）。验收：一份压测报告 + 一份"已知限制"清单，明示不接的流量类型。</p>
+            </div>
+          </div>
+
+          <h3>10.4 与现成方案的关系：什么时候别自己写</h3>
+          <p>先说清边界，免得重复造轮子：</p>
+          <ul>
+            <li><strong>Cilium</strong>：K8s 场景的全功能 eBPF 网络方案（CNI、kube-proxy 替代、L7 策略）。沙箱跑在 K8s 里且需求是标准 Pod 网络时，直接用它，不要自研；</li>
+            <li><strong>自研转发面的合理场景</strong>：沙箱不是 Pod（自研运行时/微虚机/裸进程）、拓扑与策略模型特殊（如按域名派生许可、两段式出站）、或需要把转发面嵌进已有网关进程——这正是你的沙箱项目的情形；</li>
+            <li>即便自研，也建议先通读 Cilium 的 <code>bpf/</code> 目录：它对 NAT、分片、校验和边界情况的处理是最好的免费教材。</li>
+          </ul>
+
+          <div class="callout key">
+            <span class="co-title">毕业标准</span>
+            完成 M1–M3，你就已经具备"用 eBPF 开发沙箱网络转发面"的完整能力链：分类、策略、NAT、连接跟踪、计数审计一个不少。M4/M5 是把它从"能跑"推向"敢上生产"的工程化过程。下一章自测通过后，就可以开工了。
+          </div>
+
+          <div class="ch-summary">
+            <h4>本章小结</h4>
+            <ul>
+              <li>架构：每沙箱一对 veth，TC 双程序（出/入）+ 五张 Map + libbpf 控制面。</li>
+              <li>M1 直通 → M2 策略 → M3 NAT/CT → M4 编排接入 → M5 硬化，五步各自可验收。</li>
+              <li>K8s 标准场景优先 Cilium；特殊拓扑与策略模型才是自研的领地。</li>
+            </ul>
+          </div>
+          <div class="pager"><button class="prev" data-goto="8">← 上一章</button><button class="next" data-goto="10">最后一章：自测 →</button></div>
+        </section>
+
+        <!-- ================= 第 11 章 ================= -->
+        <section class="chapter" data-ch="10">
+          <div class="ch-kicker">Chapter 11 · 自测</div>
+          <h2 class="ch-title">自测：八个问题验收学习成果</h2>
+          <p class="ch-lede">全部答对，说明你已经建立了写转发面所需的完整心智模型。答错的题，解析里标注了回看的章节。</p>
+          <div id="quizBox"></div>
+          <div class="quiz-score" id="quizScore"></div>
+          <div class="pager"><button class="prev" data-goto="9">← 上一章</button><button class="next" disabled>教程完 · 回到实战章动手 →</button></div>
+        </section>
+      </main>
+    </div>
+
+    <script>
+      /* ================= 章节导航 ================= */
+      var CHAPTERS = [
+        "为什么需要 eBPF", "eBPF 全景与挂载点", "第一个程序与工具链", "验证器",
+        "Maps", "XDP", "TC BPF", "NAT 与连接跟踪", "可观测与调试", "实战：沙箱转发面", "自测"
+      ];
+      var sections = document.querySelectorAll("section.chapter");
+      var toc = document.getElementById("toc");
+      var mobileScroll = document.getElementById("mobileTocScroll");
+      var seen = {};
+      var current = 0;
+
+      CHAPTERS.forEach(function (name, i) {
+        var b = document.createElement("button");
+        b.innerHTML = '<span class="no">' + String(i + 1).padStart(2, "0") + '</span><span>' + name + '</span><span class="done">✓</span>';
+        b.addEventListener("click", function () { gotoChapter(i); });
+        toc.appendChild(b);
+        var mb = document.createElement("button");
+        mb.textContent = (i + 1) + ". " + name;
+        mb.addEventListener("click", function () { gotoChapter(i); });
+        mobileScroll.appendChild(mb);
+      });
+
+      function gotoChapter(i) {
+        current = i;
+        sections.forEach(function (s, j) { s.classList.toggle("active", j === i); });
+        var btns = toc.querySelectorAll("button");
+        var mbtns = mobileScroll.querySelectorAll("button");
+        btns.forEach(function (b, j) {
+          b.classList.toggle("active", j === i);
+          if (seen[j]) b.classList.add("seen");
+        });
+        mbtns.forEach(function (b, j) { b.classList.toggle("active", j === i); });
+        seen[i] = true; btns[i].classList.add("seen");
+        document.getElementById("progressBar").style.width = ((i + 1) / CHAPTERS.length * 100) + "%";
+        window.scrollTo({ top: 0, behavior: "auto" });
+        if (mbtns[i]) mbtns[i].scrollIntoView({ inline: "center", block: "nearest" });
+      }
+
+      document.querySelectorAll("[data-goto]").forEach(function (el) {
+        el.addEventListener("click", function () { gotoChapter(parseInt(el.getAttribute("data-goto"), 10)); });
+      });
+
+      /* ================= 演示 A：挂载点全景 ================= */
+      var HOOKS = [
+        { id: "nic", name: "网卡 / 驱动收包", sub: "DMA ring", title: "物理起点", type: "—", ctx: "—", acts: "—",
+          body: "帧还在网卡的 DMA 环形队列里。下一站 XDP 是内核给你的第一个、也是最早的拦截机会。" },
+        { id: "xdp", name: "XDP", sub: "BPF_PROG_TYPE_XDP · native / generic", title: "XDP 程序点", type: "XDP", ctx: "struct xdp_md（data / data_end 裸包指针）", acts: "DROP / PASS / TX / REDIRECT / ABORTED",
+          body: "skb 尚未分配，信息最少但速度最快。适合粗筛：协议白名单、黑名单、速率计数。改包手段是 adjust_head/tail 与直接指针写。第 6 章放大讲。" },
+        { id: "gso", name: "GRO / 协议栈入口", sub: "skb 分配 · eth_type_trans", title: "skb 诞生", type: "—", ctx: "struct sk_buff", acts: "—",
+          body: "通过 XDP 的包在这里被分配 skb、定协议类型，自此有了 mark、入接口、所有权等元数据。" },
+        { id: "tcin", name: "TC ingress", sub: "BPF_PROG_TYPE_SCHED_CLS · clsact", title: "TC 入口程序点 ★ 转发面主力", type: "SCHED_CLS", ctx: "struct __sk_buff（完整元数据）", acts: "OK 放行 / SHOT 丢弃 / redirect 重定向",
+          body: "沙箱侧 veth 的包到达宿主机时先过这里：分类、查策略、建连接跟踪、做 NAT、redirect 到出口设备——第 7、8 章的主战场。对从沙箱收包而言，它就是你的网关第一行代码。" },
+        { id: "nf", name: "netfilter / 路由", sub: "PREROUTING · FORWARD · conntrack 子系统", title: "传统协议栈", type: "—", ctx: "struct sk_buff", acts: "iptables/nftables 规则判定",
+          body: "传统防火墙与内核连接跟踪的地盘。BPF 转发面常与之共存：要么 BPF 抢先 redirect 绕开它，要么用 mark 打标与它协作。自研转发面要明确谁负责 NAT，避免双重改写。" },
+        { id: "sock", name: "Socket / 应用", sub: "TCP/UDP 栈 · 本地交付", title: "本地终点", type: "SOCKET_FILTER / CGROUP_SKB", ctx: "struct __sk_buff / socket", acts: "交付应用，或经 socket 层策略判定",
+          body: "目标是本机进程的包到此交付。若目标不是本机，包在路由后转入发送方向——从 TC egress 离开本机或被 redirect 进另一个 netns。" }
+      ];
+      var hookFlow = document.getElementById("hookFlow");
+      var hookDetail = document.getElementById("hookDetail");
+      HOOKS.forEach(function (h, i) {
+        var btn = document.createElement("button");
+        btn.className = "hook-node"; btn.setAttribute("data-hook", h.id);
+        btn.innerHTML = '<span class="hn-name">' + h.name + '</span><span class="hn-sub">' + h.sub + '</span>';
+        btn.addEventListener("click", function () { selectHook(h.id); });
+        var row = document.createElement("div"); row.className = "hook-row"; row.appendChild(btn);
+        hookFlow.appendChild(row);
+        if (i < HOOKS.length - 1) {
+          var ar = document.createElement("div"); ar.className = "hook-arrow";
+          ar.innerHTML = "▼" + (h.id === "tcin" ? ' <span>被 redirect 的包可在此直接离开，去往其他设备 / netns</span>' : "");
+          hookFlow.appendChild(ar);
+        }
+      });
+      function selectHook(id) {
+        var h = null;
+        HOOKS.forEach(function (x) { if (x.id === id) h = x; });
+        hookFlow.querySelectorAll(".hook-node").forEach(function (n) {
+          n.classList.toggle("sel", n.getAttribute("data-hook") === id);
+        });
+        hookDetail.innerHTML = "<h5>" + h.title + "</h5>" +
+          '<div class="hd-meta"><span>程序类型 <b>' + h.type + '</b></span><span>上下文 <b>' + h.ctx + '</b></span><span>动作 <b>' + h.acts + '</b></span></div>' +
+          "<p style='margin:0'>" + h.body + "</p>";
+      }
+      selectHook("tcin");
+
+      /* ================= 演示 B：验证器模拟 ================= */
+      var SNIPPETS = [
+        {
+          name: "A · 教科书写法", file: "a_safe.c",
+          code:
+'struct iphdr *ip = (void *)(eth + 1);\n' +
+'if ((void *)(ip + 1) > data_end)\n' +
+'    return XDP_PASS;          // 先验界\n' +
+'__u8 proto = ip->protocol;    // 再解引用',
+          checks: [
+            ["指针运算", "pass", "ip 由包指针 + 常量偏移得到，类型保持 pkt_ptr"],
+            ["边界检查", "pass", "解引用前已证明 [ip, ip+20) ⊆ [data, data_end)"],
+            ["循环终止", "pass", "无循环，指令数有限"],
+            ["寄存器收尾", "pass", "返回值恒为 XDP_PASS/DROP 枚举"]
+          ],
+          ok: true,
+          verdict: "验证通过。程序被 JIT 编译，可以挂载。这就是第 3 章代码的写法。",
+          log: "processed 42 insns (limit 1000000) max_states_per_insn 0\ntotal_states 5 peak_states 5 mark_read 2\nVERDICT: ACCEPT"
+        },
+        {
+          name: "B · 少了一行检查", file: "b_nocheck.c",
+          code:
+'struct iphdr *ip = (void *)(eth + 1);\n' +
+'// （漏掉了边界检查）\n' +
+'__u8 proto = ip->protocol;    // 直接解引用',
+          checks: [
+            ["指针运算", "pass", "ip 由包指针 + 常量偏移得到，类型保持 pkt_ptr"],
+            ["边界检查", "fail", "R2=pkt(off=14) 解引用时可读范围 r=14，需读 off=23 —— 越界未被排除"],
+            ["循环终止", "skip", "未及检查：验证在第 9 条指令处中止"],
+            ["寄存器收尾", "skip", "未及检查"]
+          ],
+          ok: false,
+          verdict: "验证拒绝：invalid access to packet。帧可能短于 34 字节（比如一个 ARP 帧），ip->protocol 会读到帧外内存。验证器不管这种概率有多低——证明不了，就拒绝。",
+          log: "R1=ctx(id=0,off=0,imm=0) R2=pkt(id=0,off=0,r=14,imm=0) R10=fp0\n; __u8 proto = ip->protocol;\ninvalid access to packet, off=23 size=1\nR2 offset is outside of the packet\nprocessed 9 insns ... VERDICT: REJECT"
+        },
+        {
+          name: "C · 查表不判空", file: "c_nullderef.c",
+          code:
+'__u64 *cnt = bpf_map_lookup_elem(&stats, &k);\n' +
+'*cnt += 1;                    // cnt 可能是 NULL\n' +
+'return TC_ACT_OK;',
+          checks: [
+            ["指针运算", "pass", "cnt 类型为 map_value_or_null，来源合法"],
+            ["空指针检查", "fail", "lookup 返回值未经判空即写解引用：可能是 NULL"],
+            ["循环终止", "skip", "未及检查：验证在第 14 条指令处中止"],
+            ["寄存器收尾", "skip", "未及检查"]
+          ],
+          ok: false,
+          verdict: "验证拒绝：R0 invalid mem access 'map_value_or_null'。查表落空（键不存在）返回 NULL 是正常情况，不是异常——计数表里键还没建时就会落空。必须先判空，或改用先 update 建键的写法。",
+          log: "; *cnt += 1;\nR0 invalid mem access 'map_value_or_null'\nprocessed 14 insns ... VERDICT: REJECT"
+        }
+      ];
+      var curSnippet = 0;
+      var pickBox = document.getElementById("snippetPick");
+      var codeEl = document.getElementById("snippetCode");
+      var nameEl = document.getElementById("snippetName");
+      var checksEl = document.getElementById("vChecks");
+      var verdictEl = document.getElementById("vVerdict");
+      var logEl = document.getElementById("vLog");
+      var checkTimer = null;
+
+      SNIPPETS.forEach(function (s, i) {
+        var b = document.createElement("button");
+        b.textContent = s.name;
+        b.addEventListener("click", function () { pickSnippet(i); });
+        pickBox.appendChild(b);
+      });
+      function esc(t) { return t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+      function pickSnippet(i) {
+        curSnippet = i;
+        pickBox.querySelectorAll("button").forEach(function (b, j) { b.classList.toggle("sel", j === i); });
+        codeEl.textContent = SNIPPETS[i].code;
+        nameEl.textContent = SNIPPETS[i].file;
+        resetVerifier();
+      }
+      function resetVerifier() {
+        if (checkTimer) { clearInterval(checkTimer); checkTimer = null; }
+        checksEl.innerHTML = "";
+        SNIPPETS[curSnippet].checks.forEach(function (c) {
+          var li = document.createElement("li");
+          li.innerHTML = '<span class="st">···</span><span>' + c[0] + '</span>';
+          checksEl.appendChild(li);
+        });
+        verdictEl.className = "v-verdict"; verdictEl.textContent = "";
+        logEl.className = "v-log"; logEl.textContent = "";
+      }
+      document.getElementById("vRun").addEventListener("click", function () {
+        resetVerifier();
+        var s = SNIPPETS[curSnippet];
+        var items = checksEl.querySelectorAll("li");
+        var idx = 0;
+        checkTimer = setInterval(function () {
+          if (idx >= s.checks.length) {
+            clearInterval(checkTimer); checkTimer = null;
+            verdictEl.className = "v-verdict " + (s.ok ? "ok" : "ng");
+            verdictEl.textContent = (s.ok ? "✔ " : "✘ ") + s.verdict;
+            logEl.className = "v-log show";
+            logEl.innerHTML = esc(s.log).replace(/invalid access[^<]*/g, '<span class="err">$&</span>')
+                                          .replace(/R0 invalid[^<]*/g, '<span class="err">$&</span>');
+            return;
+          }
+          var c = s.checks[idx];
+          var li = items[idx];
+          li.classList.add("on");
+          var st = li.querySelector(".st");
+          if (c[1] === "pass") { li.classList.add("pass"); st.textContent = "PASS"; li.lastChild.textContent = c[0] + " — " + c[2]; }
+          else if (c[1] === "fail") { li.classList.add("fail"); st.textContent = "FAIL"; li.lastChild.textContent = c[0] + " — " + c[2]; }
+          else { st.textContent = "SKIP"; li.lastChild.textContent = c[0] + " — " + c[2]; }
+          idx++;
+        }, 550);
+      });
+      document.getElementById("vReset").addEventListener("click", resetVerifier);
+      pickSnippet(0);
+
+      /* ================= 演示 C：Map 实验台 ================= */
+      var mapData = { "203.0.113.10": "NAT", "198.51.100.7": "ALLOW" };
+      var mapRows = document.getElementById("mapRows");
+      var mapLog = document.getElementById("mapLog");
+      var logLines = [];
+      function mlog(html) {
+        logLines.push(html);
+        if (logLines.length > 40) logLines.shift();
+        mapLog.innerHTML = logLines.join("\n");
+        mapLog.scrollTop = mapLog.scrollHeight;
+      }
+      function renderMap(flashKey) {
+        var keys = Object.keys(mapData);
+        if (!keys.length) { mapRows.innerHTML = '<div class="map-empty">（空表 —— 查任何键都会落空，走默认策略）</div>'; return; }
+        mapRows.innerHTML = "";
+        keys.sort().forEach(function (k) {
+          var row = document.createElement("div");
+          row.className = "map-row" + (k === flashKey ? " flash" : "");
+          row.innerHTML = "<span>key: " + k + "</span><span>value: " + mapData[k] + "</span>";
+          mapRows.appendChild(row);
+        });
+      }
+      document.getElementById("opUpdate").addEventListener("click", function () {
+        var ip = document.getElementById("opIp").value;
+        var act = document.getElementById("opAction").value;
+        var existed = ip in mapData;
+        mapData[ip] = act;
+        renderMap(ip);
+        mlog('<span class="t">[用户态]</span> bpf_map_update_elem(policy_map, &amp;"' + ip + '", ' + act + ") → 0" +
+             (existed ? " <span class='hl'>// 覆盖已有条目</span>" : " <span class='hl'>// 新建条目</span>"));
+      });
+      document.getElementById("opDelete").addEventListener("click", function () {
+        var ip = document.getElementById("opIp").value;
+        if (ip in mapData) { delete mapData[ip]; renderMap(null); mlog('<span class="t">[用户态]</span> bpf_map_delete_elem(policy_map, &amp;"' + ip + '") → 0'); }
+        else mlog('<span class="t">[用户态]</span> bpf_map_delete_elem(policy_map, &amp;"' + ip + '") → -ENOENT <span class="hl">// 本来就不存在</span>');
+      });
+      document.getElementById("opLookup").addEventListener("click", function () {
+        var ip = document.getElementById("pktIp").value;
+        var v = mapData[ip];
+        if (v !== undefined) {
+          mlog('<span class="t">[BPF 程序]</span> 包 dst=' + ip + ' → lookup 命中 → 动作 <span class="hl">' + v + "</span>" +
+               (v === "DENY" ? " → TC_ACT_SHOT 丢弃" : v === "NAT" ? " → 改写源地址后 redirect 出站" : " → redirect 放行"));
+        } else {
+          mlog('<span class="t">[BPF 程序]</span> 包 dst=' + ip + ' → lookup 返回 <span class="hl">NULL</span> → 默认策略 DENY → TC_ACT_SHOT 丢弃 + 计数');
+        }
+      });
+      renderMap(null);
+      mlog('<span class="t">[系统]</span> policy_map 已随程序加载创建，控制面预置了 2 条策略。试着删除一条，再发包看看。');
+
+      /* ================= 演示 D：XDP 动作实验台 ================= */
+      var XDP_KINDS = [
+        { id: "https", name: "HTTPS", sub: "tcp dport 443", def: "pass" },
+        { id: "dns", name: "DNS 查询", sub: "udp dport 53", def: "pass" },
+        { id: "icmp", name: "ICMP ping", sub: "proto 1", def: "drop" },
+        { id: "scan", name: "端口扫描探测", sub: "tcp SYN 裸扫", def: "drop" }
+      ];
+      var xdpCounts = { pass: 0, drop: 0, tx: 0 };
+      var xdpRulesEl = document.getElementById("xdpRules");
+      XDP_KINDS.forEach(function (k) {
+        var d = document.createElement("div");
+        d.className = "xdp-rule";
+        d.innerHTML = '<div class="xr-name">' + k.name + "<span>" + k.sub + "</span></div>" +
+          '<select id="rule-' + k.id + '">' +
+          '<option value="pass"' + (k.def === "pass" ? " selected" : "") + '>XDP_PASS 放行</option>' +
+          '<option value="drop"' + (k.def === "drop" ? " selected" : "") + '>XDP_DROP 丢弃</option>' +
+          '<option value="tx">XDP_TX 原路发回</option></select>';
+        xdpRulesEl.appendChild(d);
+      });
+      function renderCounts() {
+        document.getElementById("cntPass").textContent = xdpCounts.pass;
+        document.getElementById("cntDrop").textContent = xdpCounts.drop;
+        document.getElementById("cntTx").textContent = xdpCounts.tx;
+      }
+      document.getElementById("xdpRun").addEventListener("click", function () {
+        var laneIn = document.getElementById("laneIn");
+        var laneOut = document.getElementById("laneOut");
+        laneIn.innerHTML = ""; laneOut.innerHTML = "";
+        var seq = [];
+        for (var i = 0; i < 12; i++) seq.push(XDP_KINDS[Math.floor(Math.random() * XDP_KINDS.length)]);
+        seq.forEach(function (k, idx) {
+          setTimeout(function () {
+            var chip = document.createElement("span");
+            chip.className = "pkt"; chip.textContent = k.name;
+            laneIn.appendChild(chip); laneIn.appendChild(document.createTextNode(" "));
+            var act = document.getElementById("rule-" + k.id).value;
+            xdpCounts[act]++; renderCounts();
+            var out = document.createElement("span");
+            out.className = "pkt " + act;
+            out.textContent = k.name + (act === "pass" ? " ✓" : act === "drop" ? " ✕" : " ↩");
+            laneOut.appendChild(out); laneOut.appendChild(document.createTextNode(" "));
+          }, idx * 160);
+        });
+      });
+      document.getElementById("xdpClear").addEventListener("click", function () {
+        xdpCounts = { pass: 0, drop: 0, tx: 0 }; renderCounts();
+        document.getElementById("laneIn").innerHTML = "";
+        document.getElementById("laneOut").innerHTML = "";
+      });
+
+      /* ================= 演示 E：沙箱转发实验室 ================= */
+      var LAB_NODES = [
+        { name: "沙箱进程", sub: "10.66.0.2" },
+        { name: "veth 沙箱侧", sub: "eth0 · netns" },
+        { name: "TC ingress", sub: "veth-host · fwd_out" },
+        { name: "策略 / NAT", sub: "policy + conntrack" },
+        { name: "物理出口", sub: "eth0 · 203.0.113.1" },
+        { name: "目标", sub: "外网 / 对端沙箱" }
+      ];
+      var labTopo = document.getElementById("labTopo");
+      LAB_NODES.forEach(function (n, i) {
+        var d = document.createElement("div");
+        d.className = "topo-node"; d.id = "topo-" + i;
+        d.innerHTML = '<span class="tn-name">' + n.name + '</span><span class="tn-sub">' + n.sub + "</span>";
+        labTopo.appendChild(d);
+        if (i < LAB_NODES.length - 1) {
+          var l = document.createElement("div"); l.className = "topo-link"; l.textContent = "→";
+          labTopo.appendChild(l);
+        }
+      });
+
+      var NAT_PORT = 31001;
+      function hdrStr(src, dst, changed) {
+        function mark(v, isChg) { return isChg ? '<span class="chg">' + v + "</span>" : v; }
+        return '<span class="dim">ETH</span> … → <span class="dim">IP</span> src=' + mark(src, changed && changed.src) +
+               " dst=" + mark(dst, changed && changed.dst) + ' <span class="dim">· TCP</span>';
+      }
+      var LAB_SCENARIOS = {
+        api: [
+          { nodes: [0, 1], hdr: hdrStr("10.66.0.2:52344", "198.51.100.7:443"),
+            desc: "<b>发包。</b>沙箱进程 connect() 外网 API，包从沙箱 eth0 发出，经 veth 对到达宿主机侧。此刻包还是沙箱的内网源地址。" },
+          { nodes: [2], hdr: hdrStr("10.66.0.2:52344", "198.51.100.7:443"),
+            desc: "<b>进入 fwd_out（TC ingress）。</b>veth 宿主机侧的 ingress 程序被触发。先做包分类：解析出五元组 (10.66.0.2:52344 → 198.51.100.7:443, TCP)。" },
+          { nodes: [3], hdr: hdrStr("10.66.0.2:52344", "198.51.100.7:443"),
+            desc: "<b>查策略。</b>以（沙箱 ifindex, 目标网段 198.51.100.0/24, 443）查 policy_map（LPM_TRIE）→ 命中 ALLOW + NAT。同时查 conntrack：无此连接，是新建流。" },
+          { nodes: [3], hdr: hdrStr("203.0.113.1:31001", "198.51.100.7:443", { src: true }), ct: "add-api",
+            desc: "<b>做 SNAT 并登记连接。</b>分配外部端口 31001；改源为 203.0.113.1:31001（先用旧值增量修 L3/L4 校验和，再覆盖字段）；conntrack 写入正向条目 10.66.0.2:52344→198.51.100.7:443 映射至 203.0.113.1:31001，并写好回程匹配所需的反向条目。" },
+          { nodes: [4, 5], hdr: hdrStr("203.0.113.1:31001", "198.51.100.7:443", { src: true }),
+            desc: "<b>送出。</b>bpf_redirect 到物理网卡（或交回协议栈经 fib 选路后发出）。外网服务器看到的是一个来自 203.0.113.1:31001 的普通连接，对沙箱一无所知。" },
+          { nodes: [5, 4], hdr: hdrStr("198.51.100.7:443", "203.0.113.1:31001"),
+            desc: "<b>回程包到达。</b>服务器回包 dst=203.0.113.1:31001，进入物理口的 fwd_in 程序。查策略？不需要——回程流量查的是 conntrack。" },
+          { nodes: [3], hdr: hdrStr("198.51.100.7:443", "10.66.0.2:52344", { dst: true }),
+            desc: "<b>凭连接记录反向改写。</b>以回程五元组查 conntrack 命中：当初登记的沙箱地址是 10.66.0.2:52344。把目的改回去，修校验和。注意：入站新连接（没有 CT 条目）会在这里被默认拒绝——这就是「只放行回程」的实现。" },
+          { nodes: [1, 0], hdr: hdrStr("198.51.100.7:443", "10.66.0.2:52344", { dst: true }),
+            desc: "<b>送达沙箱。</b>bpf_redirect 进 veth，以 ingress 姿态出现在沙箱 eth0。沙箱进程的 recv() 拿到响应，整个往返对它与直连无异。连接关闭后条目靠 LRU 与超时老化回收。" }
+        ],
+        peer: [
+          { nodes: [0, 1], hdr: hdrStr("10.66.0.2:52344", "10.66.0.3:8080"),
+            desc: "<b>发包。</b>沙箱 A 要访问同宿主机上的沙箱 B（10.66.0.3）。包到达宿主机侧 veth 的 TC ingress。" },
+          { nodes: [2, 3], hdr: hdrStr("10.66.0.2:52344", "10.66.0.3:8080"),
+            desc: "<b>分类 + 查策略。</b>目标在沙箱网段内，policy_map 命中「同宿主机沙箱互访 ALLOW · 不做 NAT」。内网直转不需要改地址，也就没有 conntrack 的 NAT 映射——但仍登记一条流记录用于计数与审计。" },
+          { nodes: [5], hdr: hdrStr("10.66.0.2:52344", "10.66.0.3:8080"), ct: "add-peer",
+            desc: "<b>直接 redirect 到 B 的 veth。</b>包以 ingress 姿态出现在沙箱 B 的 eth0，全程不出宿主机、不经物理网卡。这也是跨沙箱流量必须过策略的原因：东西向流量在很多真实事故里是横向移动的通道。" },
+          { nodes: [0], hdr: hdrStr("10.66.0.3:8080", "10.66.0.2:52344"),
+            desc: "<b>回程同理。</b>B 的回包经其 veth 的 TC 程序查流记录命中，直接 redirect 回 A。全程包头一字未改，两边看到的都是真实地址——调试友好，这也是内网直转优先于内网 NAT 的原因。" }
+        ],
+        bad: [
+          { nodes: [0, 1], hdr: hdrStr("10.66.0.2:52344", "192.0.2.99:25"),
+            desc: "<b>发包。</b>沙箱里的进程（可能是被注入的恶意代码）试图连一个从未授权的地址的 25 端口。包到达 TC ingress。" },
+          { nodes: [2, 3], hdr: hdrStr("10.66.0.2:52344", "192.0.2.99:25"),
+            desc: "<b>查策略落空。</b>policy_map 里没有 192.0.2.0/24 的任何条目 → 命中默认策略 DENY。注意：默认拒绝不是没写代码，而是 lookup 返回 NULL 的分支被明确设计为拒绝。" },
+          { nodes: [2], hdr: '<span class="chg">✕ 包在此被丢弃（TC_ACT_SHOT）</span>',
+            desc: "<b>丢弃 + 留痕。</b>程序返回 TC_ACT_SHOT：stats 计数 DROP_POLICY +1，并把五元组写入 events ring buffer。用户态审计程序立刻能看到「沙箱在 20:1x 试图外联 192.0.2.99:25 被拒」——沙箱安全运营靠的就是这条流。conntrack 不写任何条目。" }
+        ]
+      };
+      var labScenario = null, labStep = -1, labCt = [], labAutoTimer = null;
+      var labDesc = document.getElementById("labDesc");
+      var labHdr = document.getElementById("labHdr");
+      var labCount = document.getElementById("labCount");
+      var labCtEl = document.getElementById("labCt");
+
+      function renderCt() {
+        if (!labCt.length) { labCtEl.innerHTML = '<div class="ct-empty">（暂无条目）</div>'; return; }
+        var html = '<div class="table-wrap" style="margin:0"><table class="ct-table"><tr><th>原始五元组</th><th>NAT 后</th><th>类型</th></tr>';
+        labCt.forEach(function (e) { html += "<tr><td>" + e.orig + "</td><td>" + e.nat + "</td><td>" + e.type + "</td></tr>"; });
+        labCtEl.innerHTML = html + "</table></div>";
+      }
+      function applyStep() {
+        LAB_NODES.forEach(function (_, i) { document.getElementById("topo-" + i).classList.remove("on"); });
+        if (!labScenario || labStep < 0) {
+          labCount.textContent = "";
+          document.getElementById("labPrev").disabled = true;
+          document.getElementById("labNext").disabled = true;
+          return;
+        }
+        var s = labScenario[labStep];
+        s.nodes.forEach(function (i) { document.getElementById("topo-" + i).classList.add("on"); });
+        labHdr.innerHTML = s.hdr;
+        labDesc.innerHTML = s.desc;
+        labCt = [];
+        labScenario.slice(0, labStep + 1).forEach(function (st) {
+          if (st.ct === "add-api") labCt.push({ orig: "10.66.0.2:52344 → 198.51.100.7:443/tcp", nat: "203.0.113.1:31001", type: "SNAT 正向 + 回程反向" });
+          if (st.ct === "add-peer") labCt.push({ orig: "10.66.0.2:52344 → 10.66.0.3:8080/tcp", nat: "—（直转不改写）", type: "流记录（计数/审计）" });
+        });
+        renderCt();
+        labCount.textContent = "步骤 " + (labStep + 1) + " / " + labScenario.length;
+        document.getElementById("labPrev").disabled = labStep <= 0;
+        document.getElementById("labNext").disabled = labStep >= labScenario.length - 1;
+      }
+      function stopAuto() {
+        if (labAutoTimer) { clearInterval(labAutoTimer); labAutoTimer = null; document.getElementById("labAuto").textContent = "自动播放"; }
+      }
+      document.getElementById("labSend").addEventListener("click", function () {
+        stopAuto();
+        labScenario = LAB_SCENARIOS[document.getElementById("labTarget").value];
+        labStep = 0;
+        applyStep();
+      });
+      document.getElementById("labTarget").addEventListener("change", function () {
+        stopAuto(); labScenario = null; labStep = -1; labCt = []; renderCt(); applyStep();
+        labHdr.innerHTML = '<span class="dim">包头监视器：目标已切换，点击「从沙箱发出一个包」开始。</span>';
+        labDesc.textContent = "选择目标并点击「从沙箱发出一个包」，然后用下方按钮逐步推进。";
+      });
+      document.getElementById("labNext").addEventListener("click", function () {
+        if (labScenario && labStep < labScenario.length - 1) { labStep++; applyStep(); }
+      });
+      document.getElementById("labPrev").addEventListener("click", function () {
+        if (labScenario && labStep > 0) { labStep--; applyStep(); }
+      });
+      document.getElementById("labAuto").addEventListener("click", function () {
+        if (labAutoTimer) { stopAuto(); return; }
+        if (!labScenario) document.getElementById("labSend").click();
+        this.textContent = "暂停";
+        labAutoTimer = setInterval(function () {
+          if (labStep >= labScenario.length - 1) { stopAuto(); return; }
+          labStep++; applyStep();
+        }, 2100);
+      });
+      document.getElementById("labReset").addEventListener("click", function () {
+        stopAuto(); labScenario = null; labStep = -1; labCt = []; renderCt(); applyStep();
+        labHdr.innerHTML = '<span class="dim">包头监视器：已重置。</span>';
+        labDesc.textContent = "选择目标并点击「从沙箱发出一个包」，然后用下方按钮逐步推进。";
+      });
+      renderCt(); applyStep();
+
+      /* ================= 自测 ================= */
+      var QUIZ = [
+        { q: "XDP 程序在包的旅程中处于什么位置？", opts: [
+          "协议栈完成路由之后、netfilter 之前",
+          "网卡驱动收包路径最前端，skb 分配之前",
+          "socket 交付给应用之前",
+          "与 TC egress 同一位置"], a: 1,
+          exp: "XDP 在驱动层运行，此时只有裸包指针（xdp_md），还没有 sk_buff。回看第 2、6 章。" },
+        { q: "下面哪段处理是验证器一定会拒绝的？", opts: [
+          "解析 IP 头前先判断 (ip + 1) 是否越过 data_end",
+          "bpf_map_lookup_elem 的返回值不判空直接解引用写入",
+          "用 for 循环、上界为常数 8 遍历选项字段",
+          "在 TC 程序里调用 bpf_redirect"], a: 1,
+          exp: "查表返回 map_value_or_null，未判空解引用是经典拒绝案例。回看第 4 章演示里的代码 C。" },
+        { q: "做沙箱出站连接跟踪表，选哪种 Map 最合适？", opts: [
+          "ARRAY：下标就是连接号",
+          "PERCPU_ARRAY：每 CPU 一份，互不影响",
+          "LRU_HASH：键为五元组，满时自动淘汰最久未用的冷连接",
+          "LPM_TRIE：按最长前缀淘汰"], a: 2,
+          exp: "连接表键是五元组、条目数不可预知、需要自动老化——LRU_HASH 正是为此而生。回看第 5、8 章。" },
+        { q: "TC BPF 相比 XDP 做转发面的关键优势是？", opts: [
+          "执行速度永远更快",
+          "上下文是完整的 __sk_buff：有 mark、入接口等元数据，还能查 FIB、做 redirect",
+          "不需要过验证器",
+          "可以写无界循环"], a: 1,
+          exp: "TC 的位置稍晚，但信息完整得多。两者都要过验证器，循环也都必须有界。回看第 2、7 章。" },
+        { q: "SNAT 改写源地址时，校验和的正确处理顺序是？", opts: [
+          "先覆盖 IP 头源地址，再用新值计算校验和增量",
+          "先用旧值对新值计算 L3/L4 校验和增量更新，最后才覆盖地址与端口字段",
+          "不需要处理，协议栈会自动重算",
+          "把校验和清零即可"], a: 1,
+          exp: "bpf_l3/l4_csum_replace 是增量算法，入参需要旧字段值，所以必须先算校验和、后覆盖字段。回看第 8 章。" },
+        { q: "回程包能被正确送回沙箱，靠的是什么？", opts: [
+          "回程包自带沙箱地址，查路由即可",
+          "出站时在 conntrack 里登记的反向条目：回程五元组命中后反向改写目的地址",
+          "ARP 表里有沙箱的记录",
+          "控制面为每个回程包实时下发规则"], a: 1,
+          exp: "NAT 的本质就是一张状态表：去程建表、回程查表。没有条目的入站包默认拒绝。回看第 8 章实验室。" },
+        { q: "CO-RE（一次编译到处运行）依赖的内核设施是？", opts: [
+          "内核头文件包 kernel-headers",
+          "BTF：内核自带的类型信息，加载时据此重定位结构体字段偏移",
+          "JIT 的跨版本兼容模式",
+          "容器镜像里打包的 vmlinux"], a: 1,
+          exp: "libbpf 在加载时读取目标内核的 BTF，按字段名重定位偏移。回看第 3 章。" },
+        { q: "「按域名放行」这类策略在 eBPF 转发面中的正确落地方式是？", opts: [
+          "BPF 程序里解析 DNS 包并即时学习、放行域名",
+          "控制面解析域名得到 IP 网段，下发到 LPM_TRIE 策略表；数据面只按 IP 执行",
+          "在 XDP 里做字符串匹配域名",
+          "eBPF 做不到，必须用用户态代理"], a: 1,
+          exp: "L7 语义归控制面、IP 执行归数据面，是转发面与策略系统之间的经典分界。回看第 8 章 8.4。" }
+      ];
+      var quizBox = document.getElementById("quizBox");
+      var answered = 0, correct = 0;
+      QUIZ.forEach(function (item, qi) {
+        var box = document.createElement("div");
+        box.className = "quiz-q";
+        var html = '<div class="q-text"><span class="qno">Q' + (qi + 1) + "</span>" + item.q + "</div>";
+        item.opts.forEach(function (o, oi) {
+          html += '<button class="quiz-opt" data-q="' + qi + '" data-o="' + oi + '">' + o + "</button>";
+        });
+        html += '<div class="quiz-exp">' + item.exp + "</div>";
+        box.innerHTML = html;
+        quizBox.appendChild(box);
+      });
+      quizBox.addEventListener("click", function (e) {
+        var btn = e.target.closest(".quiz-opt");
+        if (!btn || btn.disabled) return;
+        var qi = parseInt(btn.getAttribute("data-q"), 10);
+        var oi = parseInt(btn.getAttribute("data-o"), 10);
+        var box = btn.closest(".quiz-q");
+        box.querySelectorAll(".quiz-opt").forEach(function (b) {
+          b.disabled = true;
+          var bo = parseInt(b.getAttribute("data-o"), 10);
+          if (bo === QUIZ[qi].a) b.classList.add("right");
+          else if (b === btn) b.classList.add("wrong");
+        });
+        box.querySelector(".quiz-exp").classList.add("show");
+        answered++;
+        if (oi === QUIZ[qi].a) correct++;
+        if (answered === QUIZ.length) {
+          var sc = document.getElementById("quizScore");
+          var msg = correct === QUIZ.length ? "满分。你已经具备动手写沙箱转发面的完整心智模型——去第 10 章开工吧。"
+                  : correct >= 6 ? "基础扎实。把错题对应的章节回看一遍，就可以进入第 10 章的实战了。"
+                  : "有几块地基还不牢。建议按解析标注回看对应章节，再回来重答。";
+          sc.innerHTML = '<div class="big">' + correct + " / " + QUIZ.length + '</div><p style="margin:6px 0 0">' + msg + "</p>";
+          sc.classList.add("show");
+          sc.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+      });
+
+      gotoChapter(0);
+    </script>
+  </body>
+</html>
