@@ -1,0 +1,444 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:,">
+<title>HTTP CONNECT 指南 — 报文级图解</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#F7F6F3; --surface:#FFFFFF; --surface2:#F0EEE9; --text:#17202E; --muted:#5E6A7E; --line:#E3DDD3;
+  --client:#0E766E; --client-bg:#E6F4F1; --proxy:#1D4ED8; --proxy-bg:#E8EEFE; --server:#C2410C; --server-bg:#FEF0E6;
+  --warn:#92400E; --warn-bg:#FEF3C7; --ok:#166534; --ok-bg:#DCFCE7; --code-bg:#111827; --code-text:#E5E7EB;
+  --radius:14px;
+}
+@media (prefers-color-scheme: dark){
+  :root{ --bg:#0E131A; --surface:#171E29; --surface2:#1E2836; --text:#E8EDF3; --muted:#9AA8BC; --line:#2A3547; --client-bg:#0F2E2A; --proxy-bg:#162544; --server-bg:#331E0F; --warn-bg:#2E2410; --ok-bg:#142E1B; --code-bg:#0B0F16; }
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;font-family:"Noto Sans SC",system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);line-height:1.75}
+a{color:var(--proxy)}
+button,select{font-family:inherit}
+.mono{font-family:"JetBrains Mono",monospace}
+.wrap{max-width:1120px;margin:0 auto;padding:0 20px}
+.topbar{position:sticky;top:0;z-index:30;background:color-mix(in srgb,var(--bg) 88%, transparent);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+.topbar-inner{max-width:1120px;margin:0 auto;padding:0 20px;height:54px;display:flex;align-items:center;gap:16px;overflow-x:auto;scrollbar-width:none}
+.topbar-inner::-webkit-scrollbar{display:none}
+.topbar-inner a{white-space:nowrap;font-size:13px;font-weight:700;color:var(--muted);text-decoration:none;padding:8px 10px;border-radius:999px}
+.topbar-inner a:hover{color:var(--text);background:var(--surface2)}
+.topbar b{font-size:13px;letter-spacing:.08em;white-space:nowrap}
+.topbar b span{color:var(--client)}
+/* hero */
+.hero{padding:36px 0 8px}
+.eyebrow{display:inline-flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+.pill{font-size:12px;font-weight:700;letter-spacing:.06em;padding:6px 11px;border-radius:999px;border:1px solid var(--line);background:var(--surface)}
+.pill.green{background:var(--client);color:#fff;border-color:var(--client)}
+.hero h1{font-size:clamp(34px,6vw,58px);line-height:1.05;letter-spacing:-.02em;margin:0 0 14px;font-weight:900}
+.hero h1 em{font-style:normal;color:var(--client)}
+.hero p.lead{font-size:17px;color:var(--muted);max-width:720px;margin:0}
+.model{margin:26px 0 8px;background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:20px}
+.model-title{font-size:12px;letter-spacing:.12em;font-weight:800;color:var(--muted);margin-bottom:14px}
+.model-flow{display:grid;grid-template-columns:1fr auto 1fr auto 1fr;gap:10px;align-items:stretch}
+@media(max-width:640px){.model-flow{grid-template-columns:1fr}.model-arrow{transform:rotate(90deg);justify-self:center}}
+.actor{border-radius:12px;padding:16px;border:1.5px solid}
+.actor.client{border-color:var(--client);background:var(--client-bg)}
+.actor.proxy{border-color:var(--proxy);background:var(--proxy-bg)}
+.actor.server{border-color:var(--server);background:var(--server-bg)}
+.actor h3{margin:0 0 4px;font-size:16px}
+.actor p{margin:0;font-size:13px;color:var(--muted);line-height:1.6}
+.actor .ip{font-family:"JetBrains Mono",monospace;font-size:12px;font-weight:700;margin-top:8px;display:block}
+.model-arrow{display:flex;align-items:center;justify-content:center;font-size:20px;color:var(--muted);font-weight:700}
+.model-note{margin-top:14px;display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media(max-width:640px){.model-note{grid-template-columns:1fr}}
+.note{font-size:13px;padding:12px 14px;border-radius:10px;background:var(--surface2);line-height:1.6}
+.note b{color:var(--text)}
+
+/* sections */
+section{padding:34px 0 6px}
+.sec-head{display:flex;gap:14px;align-items:flex-start;margin-bottom:16px}
+.sec-num{width:38px;height:38px;flex:none;border-radius:10px;background:var(--text);color:var(--bg);display:grid;place-items:center;font-family:"JetBrains Mono",monospace;font-weight:700;font-size:14px}
+.sec-head h2{margin:0;font-size:24px;line-height:1.25;letter-spacing:-.01em}
+.sec-head p{margin:2px 0 0;color:var(--muted);font-size:14px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:20px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+@media(max-width:800px){.grid2,.grid3{grid-template-columns:1fr}}
+.card h3{margin:0 0 8px;font-size:16px}
+.card p,.card li{font-size:14px;color:var(--muted);line-height:1.7}
+.card ul{margin:8px 0 0;padding-left:18px}
+.tag{display:inline-block;font-size:11px;font-weight:800;letter-spacing:.06em;padding:3px 8px;border-radius:999px;margin-bottom:8px}
+.tag.t{background:var(--client-bg);color:var(--client)} .tag.b{background:var(--proxy-bg);color:var(--proxy)} .tag.o{background:var(--server-bg);color:var(--server)} .tag.w{background:var(--warn-bg);color:var(--warn)}
+.timeline{display:grid;grid-template-columns:110px 1fr;gap:0}
+@media(max-width:640px){.timeline{grid-template-columns:1fr}}
+.tl-year{font-family:"JetBrains Mono",monospace;font-weight:700;font-size:13px;padding:12px 10px 12px 0;border-bottom:1px solid var(--line)}
+.tl-body{padding:12px 0 12px 16px;border-bottom:1px solid var(--line);border-left:1px solid var(--line);font-size:14px;color:var(--muted)}
+.tl-body b{color:var(--text)}
+@media(max-width:640px){.tl-body{border-left:none;padding-left:0}.tl-year{border-bottom:none;padding-bottom:0}}
+
+/* stepper */
+.stepper{background:var(--surface);border:1px solid var(--line);border-radius:18px;overflow:hidden}
+.stepper-top{padding:16px 18px;border-bottom:1px solid var(--line);display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between}
+.tabs{display:flex;gap:6px;flex-wrap:wrap}
+.tab{border:1px solid var(--line);background:var(--surface2);padding:9px 14px;border-radius:999px;font-size:13px;font-weight:700;cursor:pointer;min-height:38px}
+.tab.active{background:var(--text);color:var(--bg);border-color:var(--text)}
+.controls{display:flex;gap:8px;align-items:center}
+.btn{border:1px solid var(--line);background:var(--surface);padding:9px 16px;border-radius:999px;font-weight:700;font-size:13px;cursor:pointer;min-height:38px}
+.btn.primary{background:var(--client);color:#fff;border-color:var(--client)}
+.progress{height:5px;background:var(--surface2)}
+.progress i{display:block;height:100%;background:var(--client);transition:width .3s}
+.seq{padding:18px}
+.seq-head,.seq-row{display:grid;grid-template-columns:1fr 56px 1fr 56px 1fr;gap:4px;align-items:center}
+@media(max-width:640px){.seq-head,.seq-row{grid-template-columns:1fr 28px 1fr 28px 1fr}}
+.seq-head div{text-align:center;font-size:12px;font-weight:800;letter-spacing:.06em;padding:8px 4px;border-radius:8px}
+.seq-head .c{background:var(--client-bg);color:var(--client)} .seq-head .p{background:var(--proxy-bg);color:var(--proxy)} .seq-head .s{background:var(--server-bg);color:var(--server)}
+.seq-row{padding:5px 0;cursor:pointer;border-radius:10px}
+.seq-row:hover{background:var(--surface2)}
+.seq-row.active{background:var(--warn-bg);outline:1.5px solid #D97706}
+.seq-row.dim{opacity:.38}
+.seq-cell{font-size:12px;text-align:center;line-height:1.45;padding:6px 4px}
+.seq-cell b{display:block;font-size:12.5px}
+.arrow{font-family:"JetBrains Mono",monospace;font-size:11px;color:var(--muted);text-align:center;line-height:1.3;word-break:break-all}
+.arrow.fwd{color:var(--text);font-weight:700}
+/* detail panel */
+.detail{border-top:1px solid var(--line);display:grid;grid-template-columns:1.15fr .85fr}
+@media(max-width:800px){.detail{grid-template-columns:1fr}}
+.detail-main{padding:20px;border-right:1px solid var(--line)}
+.detail-side{padding:20px;background:var(--surface2)}
+@media(max-width:800px){.detail-main{border-right:none;border-bottom:1px solid var(--line)}}
+.detail h3{margin:0 0 4px;font-size:19px}
+.detail .meta{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0 14px}
+.meta span{font-size:11px;font-weight:700;padding:4px 9px;border-radius:999px;background:var(--surface);border:1px solid var(--line);font-family:"JetBrains Mono",monospace}
+pre.wire{background:var(--code-bg);color:var(--code-text);border-radius:12px;padding:16px;font-family:"JetBrains Mono",monospace;font-size:12.5px;line-height:1.7;overflow-x:auto;margin:0 0 14px;white-space:pre-wrap;word-break:break-word}
+pre.wire .hl{color:#FBBF24} pre.wire .gr{color:#34D399} pre.wire .bl{color:#93C5FD} pre.wire .cm{color:#6B7280}
+table.fields{width:100%;border-collapse:collapse;font-size:13px}
+table.fields th{text-align:left;font-size:11px;letter-spacing:.08em;color:var(--muted);padding:7px 8px;border-bottom:1px solid var(--line)}
+table.fields td{padding:7px 8px;border-bottom:1px solid var(--line);vertical-align:top;line-height:1.55}
+table.fields td:first-child{font-family:"JetBrains Mono",monospace;font-weight:700;font-size:12px;white-space:nowrap}
+table.fields td:last-child{color:var(--muted)}
+.insight{font-size:13.5px;line-height:1.7;padding:13px 14px;border-radius:10px;background:var(--ok-bg);color:var(--text);margin-top:12px}
+.insight b{color:var(--ok)}
+.vis-box{font-size:13px;line-height:1.7}
+.vis-box h4{margin:0 0 8px;font-size:13px;letter-spacing:.06em}
+.vis-row{display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px dashed var(--line)}
+.vis-row span:first-child{color:var(--muted)} .vis-row span:last-child{font-weight:700;text-align:right;font-family:"JetBrains Mono",monospace;font-size:12px}
+.compare{width:100%;border-collapse:collapse;font-size:13.5px;background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden;display:block;overflow-x:auto}
+.compare table{width:100%;border-collapse:collapse;min-width:560px}
+.compare th{background:var(--surface2);text-align:left;padding:12px 14px;font-size:12px;letter-spacing:.06em}
+.compare td{padding:12px 14px;border-top:1px solid var(--line);vertical-align:top;line-height:1.65;color:var(--muted)}
+.compare td:first-child{font-weight:700;color:var(--text);white-space:nowrap}
+code{font-family:"JetBrains Mono",monospace;font-size:.92em;background:var(--surface2);padding:1px 6px;border-radius:6px}
+.scenario{border-top:3px solid var(--client)}
+.scenario h3{font-size:15px}
+.kbd{font-family:"JetBrains Mono",monospace;font-size:12px;background:var(--code-bg);color:var(--code-text);border-radius:8px;padding:10px 12px;margin-top:10px;overflow-x:auto;white-space:nowrap}
+.faq details{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:4px 16px;margin-bottom:8px}
+.faq summary{font-weight:700;font-size:14.5px;cursor:pointer;padding:12px 0;min-height:44px}
+.faq p{font-size:14px;color:var(--muted);margin:0 0 14px;line-height:1.7}
+.footer{padding:30px 0 50px;color:var(--muted);font-size:13px;text-align:center}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-top:10px}
+.legend i{width:10px;height:10px;border-radius:50%;display:inline-block;margin-right:5px}
+</style>
+</head>
+<body>
+<nav class="topbar"><div class="topbar-inner"><b>HTTP <span>CONNECT</span></b><a href="#bg">背景</a><a href="#why">为什么需要</a><a href="#flow">报文交互</a><a href="#compare">HTTP 对照</a><a href="#scene">应用场景</a><a href="#capture">抓包与 MITM</a><a href="#faq">FAQ</a></div></nav>
+
+<div class="wrap">
+<header class="hero">
+  <div class="eyebrow"><span class="pill green">RFC 9110 §9.3.6</span><span class="pill">HTTP/1.1 · HTTP/2 · HTTP/3</span><span class="pill">报文级 · 精细到 TCP 握手</span></div>
+  <h1>一条 <em>CONNECT</em>，<br>把 HTTP 代理变成<br>一条 TCP 隧道。</h1>
+  <p class="lead">CONNECT 不是在传网页。它是用 HTTP 的语法向代理下达一条控制指令：「帮我连到这个域名:端口，连通后别再解析，只管原样搬字节。」200 之后，代理退化成管道，TLS 在管道两端端到端完成。</p>
+
+  <div class="model">
+    <div class="model-title">先记住这张图 — 全文都在讲它</div>
+    <div class="model-flow">
+      <div class="actor client"><h3>🖥️ 客户端</h3><p>浏览器 / curl / App<br>只连代理，不直连源站</p><span class="ip">192.168.1.100</span></div>
+      <div class="model-arrow">→</div>
+      <div class="actor proxy"><h3>🧭 HTTP 代理</h3><p>收 CONNECT → 鉴权 → DNS → 拨号源站 → 回 200 → 盲转字节</p><span class="ip">203.0.113.10 : 8080</span></div>
+      <div class="model-arrow">→</div>
+      <div class="actor server"><h3>🌐 源站</h3><p>从没见过 CONNECT<br>只收到一条 TCP + TLS 握手</p><span class="ip">example.com : 443<br>93.184.216.34</span></div>
+    </div>
+    <div class="model-note">
+      <div class="note"><b>收件人 ≠ 目标：</b>CONNECT 这个请求的收件人是<b>代理</b>，请求行里写的 <code>example.com:443</code> 是要代理去连的<b>源站</b>。多级代理时逐跳重复。</div>
+      <div class="note"><b>200 是分界线：</b>200 之前代理说 HTTP、能鉴权能拒绝；200 之后代理不说 HTTP，只做双向 <code>io.Copy</code>，看不懂也改不了隧道里的内容。</div>
+    </div>
+    <div class="legend"><span><i style="background:var(--client)"></i>客户端</span><span><i style="background:var(--proxy)"></i>代理</span><span><i style="background:var(--server)"></i>源站</span><span>示例地址均为文档保留段（RFC 5737），便于对照抓包理解</span></div>
+  </div>
+</header>
+
+<!-- 01 背景 -->
+<section id="bg">
+  <div class="sec-head"><div class="sec-num">01</div><div><h2>背景：代理本来不会「打洞」，CONNECT 是补上的那块</h2><p>从只能转发 HTTP，到能承载任意 TCP —— 一条方法如何改变代理的定位</p></div></div>
+  <div class="grid2">
+    <div class="card">
+      <span class="tag t">起点</span><h3>HTTP 代理最初只做一件事：替你取网页</h3>
+      <p>早期代理处理的是明文 HTTP：客户端把完整 URL 写进请求行 <code>GET http://example.com/a.html</code>，代理解析、代为请求、回传响应。它必须<strong>看懂</strong>每一个请求。</p>
+      <p>HTTPS 出现后这套逻辑失效：TLS 要求客户端与源站端到端握手、校验源站证书，中间任何一方插手解析都会破坏加密与身份校验。代理既不能代发，又不能缺席（企业网、受限网络里客户端根本无法直连源站）。</p>
+    </div>
+    <div class="card">
+      <span class="tag b">解法</span><h3>CONNECT：不解析，只接通</h3>
+      <p>CONNECT 换了思路：代理不再「代发请求」，而是「代建连接」。客户端明文告诉代理目标 <code>host:port</code>，代理完成鉴权与拨号后回 <code>200</code>，随即把两条 TCP 连接<strong>对接</strong>成一条隧道。</p>
+      <p>隧道里跑什么协议代理一概不管 —— 这让它从「HTTP 专用中继」升级为「通用 TCP 穿透原语」，也成为后来 WebSocket、HTTP/2、MASQUE、服务网格 HBONE 共同的地基。</p>
+    </div>
+  </div>
+  <div class="card" style="margin-top:14px">
+    <h3 style="margin-bottom:6px">演进时间线</h3>
+    <div class="timeline">
+      <div class="tl-year">2000</div><div class="tl-body"><b>RFC 2817 §5</b>（2000 年 5 月）首次系统描述 CONNECT 与 TLS 隧道化（tunneling），与 Upgrade 机制一同提出。</div>
+      <div class="tl-year">2014</div><div class="tl-body"><b>RFC 7231 → 现 RFC 9110 §9.3.6</b> 正式规范 CONNECT 语义：请求目标为 authority-form（host:port），成功后连接转为隧道模式。</div>
+      <div class="tl-year">2015</div><div class="tl-body"><b>HTTP/2（RFC 7540 §8.3，现行 RFC 9113 §8.5）</b> CONNECT 迁移到伪头：<code>:method CONNECT</code> + <code>:authority</code>，一条连接可多路复用多条隧道流。</div>
+      <div class="tl-year">2018</div><div class="tl-body"><b>RFC 8441</b> 扩展 CONNECT 承载 WebSocket（<code>:protocol websocket</code>），免去 Upgrade 流程。</div>
+      <div class="tl-year">2022</div><div class="tl-body"><b>RFC 9297 / 9298（MASQUE）</b> 推出 HTTP Datagrams 与 CONNECT-UDP：CONNECT 家族从 TCP 扩展到 UDP，支撑代理 QUIC、DNS、VoIP 流量。</div>
+      <div class="tl-year">2023</div><div class="tl-body"><b>RFC 9484</b> 推出 CONNECT-IP：隧道进一步扩展到 IP 层，可代理整包 IP 流量（VPN 类场景）。</div>
+      <div class="tl-year">今天</div><div class="tl-body"><b>基础设施内建</b> Istio ambient 的 HBONE、Cloudflare Tunnel、沙箱网关（Kuasar Router → node proxy）都以 CONNECT 作为节点间的一次性隧道握手。</div>
+    </div>
+  </div>
+</section>
+
+<!-- 02 为什么 -->
+<section id="why">
+  <div class="sec-head"><div class="sec-num">02</div><div><h2>为什么必须有 CONNECT？缺一条都不行</h2><p>直接把 ClientHello 发给代理，为什么行不通</p></div></div>
+  <div class="grid3">
+    <div class="card"><span class="tag t">原因 1 · 寻址</span><h3>不说，代理不知道连谁</h3><p>客户端的 TCP 只连到代理自己。若直接发 TLS ClientHello，代理无从得知目标域名与端口。靠嗅探 SNI 猜更不可靠：ECH 会加密 SNI，非 TLS 协议根本没有 SNI，端口也猜不出。CONNECT 在加密前明文写清 <code>host:port</code>。</p></div>
+    <div class="card"><span class="tag b">原因 2 · 模式切换</span><h3>代理要分清「代发」还是「打洞」</h3><p><code>GET http://…</code> 是让代理取资源（要解析）；<code>CONNECT host:port</code> 是让代理开管道（不解析）。没有这个专门方法，代理收到字节流无法决定工作模式。CONNECT + 200 就是那个明确的切换信号。</p></div>
+    <div class="card"><span class="tag o">原因 3 · 管控前置</span><h3>拨号之前先过闸</h3><p>CONNECT 给了代理在<strong>连接源站之前</strong>检查的机会：身份认证（407）、域名白名单、端口策略（只放 443？）。不过闸直接拒绝，根本不去连源站 —— 审计与访问控制都锚在这一步。</p></div>
+  </div>
+  <div class="card" style="margin-top:14px"><p style="margin:0;color:var(--text)"><b>一句话：</b>CONNECT 不是在建客户端→代理的 TCP（那条早已由 SYN 建好），它是一条<em style="font-style:normal;color:var(--client);font-weight:700">带内控制指令</em> —— 用它，代理不用懂 TLS，也能让两端端到端握手，且证书校验完整保留。这与 SOCKS5 的 CONNECT 命令是同一个思想，只是换成了 HTTP 写法。</p></div>
+</section>
+
+<!-- 03 交互 -->
+<section id="flow">
+  <div class="sec-head"><div class="sec-num">03</div><div><h2>报文交互：HTTPS 经代理的完整流程</h2><p>点击任意一步查看该报文的逐字段精解 · 共 12 个关键报文 · 精细到 TCP 三次握手</p></div></div>
+
+  <div class="stepper">
+    <div class="stepper-top">
+      <div class="tabs">
+        <button class="tab active" data-scene="https">HTTPS 隧道（CONNECT）</button>
+        <button class="tab" data-scene="http">HTTP 明文代发（对照）</button>
+      </div>
+      <div class="controls"><span class="mono" id="stepLabel" style="font-size:13px;font-weight:700"></span><button class="btn" id="prevBtn">← 上一步</button><button class="btn primary" id="nextBtn">下一步 →</button><button class="btn" id="playBtn">▶ 自动播放</button></div>
+    </div>
+    <div class="progress"><i id="progBar"></i></div>
+    <div class="seq" id="seqBox"></div>
+    <div class="detail">
+      <div class="detail-main" id="detailMain"></div>
+      <div class="detail-side" id="detailSide"></div>
+    </div>
+  </div>
+  <p style="font-size:13px;color:var(--muted);margin-top:10px">说明：为聚焦主线，TLS 握手按 TLS 1.3 的 1-RTT 流程呈现（ClientHello → ServerHello/证书/Finished → Finished）；TCP 确认包（纯 ACK）在时序图中合并标注，在每一步的精解面板中单独说明。真实抓包中每个数据包后通常都跟一个 ACK。</p>
+</section>
+
+<!-- 04 对照 -->
+<section id="compare">
+  <div class="sec-head"><div class="sec-num">04</div><div><h2>对照：HTTP 代发 vs HTTPS 隧道 vs SOCKS5</h2><p>同一个「代理」词，三种完全不同的数据面</p></div></div>
+  <div class="compare"><table>
+    <tr><th style="width:16%">维度</th><th style="width:28%">HTTP 明文代发</th><th style="width:28%">HTTP CONNECT（HTTPS）</th><th style="width:28%">SOCKS5</th></tr>
+    <tr><td>客户端首包</td><td><code>GET http://example.com/…</code>（绝对 URI）</td><td><code>CONNECT example.com:443</code>（明文）</td><td>二进制 greeting + CONNECT 命令（0x05 0x01 …）</td></tr>
+    <tr><td>TCP 连接数</td><td>2 条（客户端↔代理、代理↔源站），请求级复用</td><td>2 条，CONNECT 后<strong>绑定为一条隧道</strong>直至关闭</td><td>2 条，命令成功后绑定为隧道</td></tr>
+    <tr><td>代理是否解析内容</td><td>解析并改写（请求行改源站形式、加 Via / X-Forwarded-For）</td><td>200 后<strong>不解析</strong>，只转发字节</td><td>从不解析应用层</td></tr>
+    <tr><td>代理能看到什么</td><td>全部明文：URL、Header、Cookie、正文</td><td>目标域名:端口、TLS 握手元数据（SNI 等）、密文长度与时序</td><td>目标 IP/域名:端口、密文字节</td></tr>
+    <tr><td>DNS 由谁解析</td><td>代理</td><td>代理（客户端不解析源站域名）</td><td>取决于 ATYP：域名形式则代理解析</td></tr>
+    <tr><td>协议范围</td><td>仅 HTTP</td><td>任意 TCP（TLS、SSH、数据库…，受端口策略约束）</td><td>TCP + UDP（UDP ASSOCIATE）</td></tr>
+    <tr><td>认证</td><td colspan="2"><code>Proxy-Authorization</code>（Basic / Digest / NTLM / Bearer 等）</td><td>独立的用户名/密码子协商（RFC 1929）</td></tr>
+  </table></div>
+</section>
+
+<!-- 05 场景 -->
+<section id="scene">
+  <div class="sec-head"><div class="sec-num">05</div><div><h2>应用场景：凡是「代理看不懂、又必须穿过代理」的流量</h2><p>CONNECT 的通用价值 = 在只能说 HTTP 的代理面前，合法地要一条不被解析的管道</p></div></div>
+  <div class="grid3">
+    <div class="card scenario"><span class="tag t">场景 1 · 主场</span><h3>HTTPS 上网</h3><p>浏览器、curl、git、npm、pip、Docker 拉镜像走 HTTPS 仓库 —— 全部先 CONNECT 到 :443 再 TLS。企业网审计、合规出口、白名单管控都锚在 CONNECT 这一步。</p><div class="kbd">CONNECT registry-1.docker.io:443</div></div>
+    <div class="card scenario"><span class="tag t">场景 2 · 同类</span><h3>其他 TLS 协议</h3><p>凡 TLS 套壳者皆然：IMAPS :993、SMTPS :465、LDAPS :636、MQTTS :8883、AMQPS :5671，以及 MySQL / PostgreSQL / Redis 的 TLS 模式。</p><div class="kbd">CONNECT mail.example.com:993</div></div>
+    <div class="card scenario"><span class="tag o">场景 3 · 穿透</span><h3>SSH 与数据库直连</h3><p><code>corkscrew</code> / <code>proxytunnel</code> 帮 ssh 走 HTTP 代理；数据库客户端同理。也正因如此，企业代理默认只放行 443/8443，22、3306 一律 403 —— 放开等于打通内网 TCP。</p><div class="kbd">CONNECT github.com:22</div></div>
+    <div class="card scenario"><span class="tag b">场景 4 · 长连接</span><h3>WebSocket</h3><p><code>wss://</code> 先 CONNECT 建隧道再 TLS 再 WS 握手；HTTP/2 则用 RFC 8441 扩展 CONNECT（<code>:protocol websocket</code>）在单条流内直接承载，不再 Upgrade。</p></div>
+    <div class="card scenario"><span class="tag b">场景 5 · UDP</span><h3>CONNECT-UDP / MASQUE</h3><p>RFC 9298 在 HTTP/3 流里封装 UDP：代理 QUIC、DNS、VoIP、游戏流量。CONNECT 从 TCP 隧道进化为 UDP/IP 隧道（CONNECT-IP，RFC 9484）。</p></div>
+    <div class="card scenario"><span class="tag o">场景 6 · 基础设施</span><h3>服务网格与沙箱网关</h3><p><b>Istio HBONE：</b>ztunnel 间以 HTTP/2 CONNECT 建 mTLS 隧道，<code>:authority</code> 带原始目的地、证书带 SPIFFE 身份。<b>Kuasar：</b>Router → node proxy 一请求一条一次性 CONNECT，鉴权/唤醒绑在握手上，200 后裸字节直达 guest。Cloudflare Tunnel 同理。</p></div>
+  </div>
+  <div class="card" style="margin-top:14px"><p style="margin:0"><b>反向代理需要 CONNECT 吗？</b> 普通反向代理（如 Nginx <code>proxy_pass</code>）<strong>不需要</strong>：它终结 HTTP、后端静态已知，直接 dial 即可。需要 CONNECT 的是<strong>隧道型网关</strong>：不终结协议、后端动态路由、且要在任何数据到达后端<em>之前</em>完成鉴权、路由与唤醒 —— CONNECT 握手就是放这些信息的唯一带内位置。node proxy 本身两种都吃（CONNECT 走隧道、普通 HTTP 走转发），用 CONNECT 是 Router 的架构选择，不是协议硬限制。</p></div>
+</section>
+
+<!-- 06 抓包 -->
+<section id="capture">
+  <div class="sec-head"><div class="sec-num">06</div><div><h2>抓包与 MITM：能抓到 HTTPS 报文吗？</h2><p>能抓到包，但默认只能看到三层东西 —— 明文在哪，取决于你站在哪、是否终结 TLS</p></div></div>
+  <div class="grid3">
+    <div class="card"><span class="tag t">第 1 层 · 明文</span><h3>CONNECT 本身</h3><p>客户端→代理段是明文 HTTP：目标域名:端口、代理认证、放行结果一目了然。这是定位「连不上」最先看的报文。</p></div>
+    <div class="card"><span class="tag b">第 2 层 · 元数据</span><h3>TLS 握手</h3><p>ClientHello 的 SNI、版本、套件；ServerHello 与证书（TLS 1.3 证书已加密；ECH 会连 SNI 一起加密）。注意抓包里目标 IP 是<strong>代理 IP</strong>，不是源站。</p></div>
+    <div class="card"><span class="tag o">第 3 层 · 密文</span><h3>Application Data</h3><p>真正的 GET / Header / 正文都在 TLS 记录里，只能看到长度、方向、时序。只靠服务器私钥也解不开 TLS 1.3（ECDHE 前向保密）。</p></div>
+  </div>
+  <div class="grid2" style="margin-top:14px">
+    <div class="card"><h3>想看到明文，只有两条正路</h3><ul>
+      <li><b>会话密钥解密：</b>让浏览器/curl 导出 <code>SSLKEYLOGFILE</code>，Wireshark 加载后解密自己抓的包 —— 调试自有客户端的首选。</li>
+      <li><b>MITM 代理解密：</b>mitmproxy / Charles / Fiddler + 客户端预装其 CA。代理把一段 TLS 拆成两段（会话 ① 对客户端用自签假证书、会话 ② 对源站用真证书），自己成为两段端点，明文只在代理内部可见。证书锁定（pinning）的应用会直接失败。</li></ul>
+      <p><b>关键澄清：</b>MITM 代理与 HTTP 代理是<strong>同一个节点</strong>的两个维度 —— 「HTTP 代理」按客户端如何与它说话分（CONNECT），「MITM」按它拿到隧道后盲转还是解密分。普通代理 = HTTP 代理 + 盲转；MITM 代理 = HTTP 代理 + 解密模式。</p></div>
+    <div class="card"><h3>透明 MITM 插在「位置 A」：客户端与 HTTP 代理之间</h3><ul>
+      <li><b>劫 8080，不是 443：</b>这段流量目标端口是代理端口，先到的是 CONNECT 不是 ClientHello，只劫 443 的经典透明 MITM 在这里直接失效。</li>
+      <li><b>先当代理，再当服务端：</b>先解析 CONNECT 并转发给上游真代理、等 200 回来，再拦截后续 TLS、用假证书终结。</li>
+      <li><b>位置 B 更顺：</b>插在代理与源站之间时 CONNECT 已被消费，只剩纯 TLS 到 :443，就是经典透明 MITM 的主场。</li>
+      <li>两种位置都要求客户端信任 MITM CA；只被动 tcpdump 不终结 TLS，则哪里都看不到明文。</li></ul></div>
+  </div>
+</section>
+
+<!-- FAQ -->
+<section id="faq">
+  <div class="sec-head"><div class="sec-num">07</div><div><h2>常见问题</h2><p>把前面几轮最容易混淆的点一次说清</p></div></div>
+  <div class="faq">
+    <details><summary>CONNECT 是建到代理还是源站？</summary><p>发给代理，目标写源站。客户端的 TCP 只连代理，CONNECT 是对代理说「帮我去连 example.com:443」。代理自己拨号源站并回 200；源站从头到尾没见过 CONNECT。多级代理时，每一跳的 CONNECT 收件人都是下一跳代理。</p></details>
+    <details><summary>CONNECT 用的 HTTP/2 / HTTP/3 时长什么样？</summary><p>没有请求行，改用伪头：<code>:method: CONNECT</code>、<code>:authority: example.com:443</code>，HTTP/2 还省略 <code>:scheme/:path</code>（扩展 CONNECT 除外）。语义不变：2xx 响应后该流转为隧道。好处是一条连接可多路复用多条隧道，HBONE 正是靠这一点摊薄 mTLS 握手成本。</p></details>
+    <details><summary>隧道里能跑 HTTP/2 / HTTP/3 到源站吗？</summary><p>能。隧道是字节级的：TLS 协商出 ALPN 是 h2 就跑 HTTP/2 帧，是 h3 则……注意 HTTP/3 跑在 QUIC/UDP 上，而经典 CONNECT 只建 TCP 隧道 —— h3 穿代理要走 CONNECT-UDP（MASQUE），不能直接塞进 TCP 隧道。</p></details>
+    <details><summary>CONNECT 失败和 TLS 失败怎么区分？</summary><p>看失败发生在哪一段：收到非 200 的 HTTP 响应 = CONNECT 阶段失败（认证/策略/代理连不上源站）；收到 200 之后握手告警或中断 = TLS/源站问题，与代理无关（代理只搬字节）。抓包时先定位这条分界线，能省掉一半排查时间。</p></details>
+    <details><summary>代理怎么知道隧道该结束了？</summary><p>任意一端关闭 TCP，代理就关闭另一端并释放两条连接（半关闭时应转发 FIN 后再全关）。隧道没有 HTTP 层的 Content-Length / 分块结束标记 —— 连接关闭就是唯一的结束信号，这也是 CONNECT 隧道天然是「一请求一连接」的原因。</p></details>
+  </div>
+</section>
+
+<div class="footer">规范依据：RFC 9110 §9.3.6（CONNECT）· RFC 9113 §8.5（HTTP/2 CONNECT）· RFC 8441（WebSocket 扩展 CONNECT）· RFC 9298（CONNECT-UDP）· RFC 1928（SOCKS5，对照）<br>文中 IP 均为文档示例地址；TLS 流程按 TLS 1.3 简化呈现。</div>
+</div>
+
+<script>
+var HTTPS_STEPS=[
+{id:1,phase:"连接① · TCP 握手",title:"① 客户端 → 代理：TCP SYN",from:"客户端",to:"代理",proto:"TCP",summary:"客户端先与代理建 TCP。注意：此刻还不知道、不需要知道源站——连接目标就是代理的 8080。",
+wire:'<span class="cm"># Wireshark: 192.168.1.100 → 203.0.113.10  TCP [SYN]</span>\nIP   src=<span class="gr">192.168.1.100</span>  dst=<span class="bl">203.0.113.10</span>  TTL=64\nTCP  sport=<span class="hl">54321</span>(临时端口)  dport=<span class="hl">8080</span>(代理端口)\n     Flags: <span class="hl">SYN=1</span>  Seq=3819204755  Win=64240\n     Options: MSS=1460, SACK, WS=256\n     <span class="cm">Len=0 —— 没有任何应用数据，没有域名</span>',
+fields:[["目标端口","8080","代理监听端口，不是 443——这是显式代理最显著的抓包特征"],["Seq","随机初始值","TCP 字节流编号起点，后续 CONNECT/TLS 都在此流上编号"],["谁发起","客户端","由浏览器读到代理配置（系统设置 / PAC / 环境变量）后发起"]],
+insight:"代理配置决定一切：客户端被告知「所有流量先找 203.0.113.10:8080」，所以第一条连接必然建到代理。源站域名此时只存在于客户端的意图里，还没出现在任何报文中。",
+vis:[["抓包可见","SYN 包全文（无应用数据）"],["代理视角","仅知有新连接，不知目标"],["源站视角","无感知"]]},
+{id:2,phase:"连接① · TCP 握手",title:"② 代理 → 客户端：SYN-ACK；③ ACK",from:"代理",to:"客户端",proto:"TCP",summary:"三次握手后两步合并展示：代理回 SYN-ACK，客户端回 ACK，连接① 建立（ESTABLISHED）。",
+wire:'<span class="cm"># 报文 2</span>\nTCP  sport=8080  dport=54321\n     Flags: <span class="hl">SYN=1, ACK=1</span>  Seq=1049283716  Ack=3819204756\n<span class="cm"># 报文 3</span>\nTCP  sport=54321  dport=8080\n     Flags: <span class="hl">ACK=1</span>  Seq=3819204756  Ack=1049283717\n<span class="cm"># 至此连接① ESTABLISHED，可承载 HTTP 字节流</span>',
+fields:[["Ack","对方 Seq+1","确认已收到 SYN，期望下一个字节的编号"],["耗时","1 个 RTT","还没发任何 HTTP 内容，成本已付——这也是代理连接常被复用的原因"],["状态","双方 ESTABLISHED","接下来这条流上先跑明文 HTTP（CONNECT），200 后改跑隧道字节"]],
+insight:"关键认知：CONNECT 不是用来建这条 TCP 的——TCP 在它之前已经建好。CONNECT 是在这条现成的流上发出的第一份应用层数据。",
+vis:[["抓包可见","SYN-ACK / ACK 全文"],["代理视角","连接就绪，等请求"],["源站视角","无感知"]]},
+{id:3,phase:"隧道协商 · 核心",title:"④ 客户端 → 代理：CONNECT 请求 ★",from:"客户端",to:"代理",proto:"HTTP/1.1 明文",summary:"全文最关键的报文：一行请求同时完成「点名目标 + 请求切换模式」。明文发送，抓包完整可见。",
+wire:'<span class="hl">CONNECT example.com:443 HTTP/1.1</span>\nHost: example.com:443\nProxy-Authorization: Basic dXNlcjpwYXNz\nProxy-Connection: keep-alive\nUser-Agent: Mozilla/5.0 ...\n<span class="cm">(空行结束，无请求体)</span>',
+fields:[["请求目标","example.com:443","authority-form：只有 host:port。没有 https://、没有路径——它不是资源定位，是拨号指令"],["Host","与请求目标一致","冗余携带，便于代理日志/虚拟主机式分流；以请求行为准"],["Proxy-Authorization","Basic base64(user:pass)","代理专用认证头，与源站的 Authorization 互不干扰、不会透传给源站"],["缺席的字段","无 Content-Length / 无 Body","CONNECT 没有请求体；头结束即请求结束"]],
+insight:"代理在这一个报文上做全部决策：验认证 → 查域名白名单 → 查端口策略（443 放行）→ 决定拨号。任一步失败，后面的报文 5–7 都不会发生，直接回 407/403。",
+vis:[["抓包可见","★ 全文明文"],["代理视角","目标、身份全可见"],["源站视角","永远收不到这个报文"]]},
+{id:4,phase:"代理拨号准备",title:"⑤ 代理 → DNS：解析 example.com",from:"代理",to:"DNS 服务器",proto:"DNS",summary:"解析由代理完成——客户端从头到尾不需要知道源站 IP，这也是 DNS 防污染/审计能放在代理侧的原因。",
+wire:'<span class="cm"># UDP 53（或 DoT/DoH，视代理配置）</span>\nQuery  ID=0x3f2a  RD=1\n       QNAME=<span class="hl">example.com</span>  QTYPE=A / AAAA\n<span class="cm"># 响应</span>\nAnswer A  <span class="gr">93.184.216.34</span>  TTL=300\n       AAAA 2606:2800:21f:cb07:...',
+fields:[["由谁解析","代理","与明文代发相同：CONNECT 模式下源站 DNS 也归代理"],["选 IP 策略","代理决定 v4/v6","Happy Eyeballs 等策略在代理侧，客户端无感"],["失败后果","回 502","DNS 失败发生在回 200 之前，客户端收到的是 HTTP 错误而非隧道"]],
+insight:"推论：在客户端侧抓包，你永远看不到源站域名的 DNS 查询（除非走 DoH 等旁路）。排查「域名解析不对」要去代理上查。",
+vis:[["抓包可见","仅代理↔DNS 段可见"],["代理视角","拿到源站 IP 93.184.216.34"],["源站视角","无感知"]]},
+{id:5,phase:"连接② · TCP 握手",title:"⑥ 代理 → 源站：TCP SYN（纯 SYN！）",from:"代理",to:"源站",proto:"TCP",summary:"代理以自己的出口 IP、随机源端口向源站 443 发起握手。包里没有任何应用信息——这是最常被误解的报文。",
+wire:'<span class="cm"># Wireshark: 203.0.113.10 → 93.184.216.34  TCP [SYN]</span>\nIP   src=<span class="bl">203.0.113.10</span>  dst=<span class="gr">93.184.216.34</span>\nTCP  sport=<span class="hl">45678</span>(代理临时端口)  dport=<span class="hl">443</span>\n     Flags: <span class="hl">SYN=1</span>  Seq=2874650193  Win=64240  MSS=1460\n     <span class="cm">Len=0 —— 无域名、无 CONNECT、无 TLS</span>',
+fields:[["源 IP","代理出口 IP","源站日志里看到的「访客」是代理，不是客户端（除非另有 XFF 类带外信息，而隧道模式没有）"],["目标","DNS 解析出的 IP:443","域名信息在拨号完成后即被「消耗」，不再出现在任何后续报文里"],["数据长度","0","SYN 只建连接。普通代理在此步绝不附带任何应用数据"]],
+insight:"为什么不是 CONNECT？CONNECT 是 HTTP 语义，只存在于「会讲 HTTP 的两方」之间（客户端↔代理）。代理↔源站之间没有第二个代理，就是一次普通得不能再普通的 TCP 拨号。",
+vis:[["抓包可见","SYN 包全文"],["代理视角","拨号中"],["源站视角","只知代理 IP 来连 443"]]},
+{id:6,phase:"连接② · TCP 握手",title:"⑦ 源站 SYN-ACK → ⑧ 代理 ACK",from:"源站",to:"代理",proto:"TCP",summary:"连接② 建立。至此两条独立的 TCP 连接同时存在，代理在中间持有它们的端点，尚未开始转发数据。",
+wire:'<span class="cm"># 报文 7</span>  TCP Flags: <span class="hl">SYN=1, ACK=1</span> Seq=1592038471 Ack=2874650194\n<span class="cm"># 报文 8</span>  TCP Flags: <span class="hl">ACK=1</span> Seq=2874650194 Ack=1592038472\n\n连接①  192.168.1.100:54321  ↔  203.0.113.10:8080   ESTABLISHED\n连接②  203.0.113.10:45678   ↔  93.184.216.34:443   ESTABLISHED',
+fields:[["两条连接关系","彼此独立","各自独立的 Seq/Ack 空间、窗口、重传——代理做的是应用层对接，不是 IP 层转发"],["源站拒绝时","RST → 代理回 502","TCP 被拒发生在 200 之前，所以客户端能拿到明确的 HTTP 错误"],["此刻状态","万事俱备","只差代理点头：回 200，把两条连接「焊」起来"]],
+insight:"注意顺序：在确认源站可达之前，代理不会先回 200——否则客户端兴冲冲开始 TLS 握手，却握了个空。所以 200 的语义是「我已经替你连通了」，不是「我打算去连」。",
+vis:[["抓包可见","握手全文"],["代理视角","两条连接就绪"],["源站视角","连接建立，等数据"]]},
+{id:7,phase:"隧道协商 · 核心",title:"⑨ 代理 → 客户端：200 Connection Established ★",from:"代理",to:"客户端",proto:"HTTP/1.1 明文",summary:"模式切换发生的瞬间。这行响应之后，连接① 上的每一个字节都不再属于 HTTP。",
+wire:'<span class="hl">HTTP/1.1 200 Connection Established</span>\n<span class="cm">(通常无更多头，无响应体)</span>\n<span class="cm">—— 分界线 ——</span>\n<span class="cm">此后代理内部动作: splice(连接①, 连接②)</span>\n<span class="cm">双向 io.Copy， 只按字节转发， 不读内容</span>',
+fields:[["状态短语","Connection Established","惯用语而非标准强制文本；判断成功只看状态码 200"],["响应体","无","200 之后若有字节，那是隧道数据（源站方向来的 TLS 字节），不是 HTTP 响应体"],["代理状态变更","HTTP 解析器关闭","代理从「HTTP 服务器」退化为「字节管道」，这是 CONNECT 全部魔法的落点"]],
+insight:"排障分界线：抓包里看到这行 200，说明代理侧（认证、策略、拨号）全部无罪；之后再出问题，一律去 TLS / 源站方向找。",
+vis:[["抓包可见","★ 全文明文"],["代理视角","切换为盲转模式"],["源站视角","无感知（它不知道有 200）"]]},
+{id:8,phase:"隧道内 · TLS 握手",title:"⑩ 客户端 → 源站：TLS ClientHello（经代理透传）",from:"客户端 →(代理)→ 源站",to:"源站",proto:"TLS 1.3",summary:"客户端在隧道里发出握手第一包。代理原样转发——它看到字节，但这不是发给它的。",
+wire:'TLS Record  Type=<span class="hl">22 Handshake</span>  Version=TLS1.2(兼容)\n ClientHello\n   random: 32B 随机数\n   cipher_suites: TLS_AES_256_GCM_SHA384,\n                  TLS_CHACHA20_POLY1305_SHA256, ...\n   extensions:\n     <span class="hl">server_name (SNI) = example.com</span>\n     supported_versions = TLS 1.3\n     key_share = x25519 公钥份额\n     alpn = h2 / http/1.1',
+fields:[["SNI","example.com（明文）","源站靠它选证书；也是被动抓包能看到域名的主要来源——ECH 开启后此处加密"],["key_share","x25519 临时公钥","TLS 1.3 在第一包就带密钥份额，实现 1-RTT；私钥不出客户端，前向保密"],["代理的角色","逐字节转发","代理的 TCP 层会重新编号、分包——TLS 记录可能被拆/合，内容一字不变"]],
+insight:"端到端性的试金石：ClientHello 的收件人是源站。若代理是普通盲转，它连 SNI 都只是「路过看见」；它无法伪造后续握手，因为它没有源站证书私钥。",
+vis:[["抓包可见","握手明文（含 SNI）"],["代理视角","密文流的明文头部，可见 SNI"],["源站视角","正常握手，不知有代理"]]},
+{id:9,phase:"隧道内 · TLS 握手",title:"⑪ 源站 → 客户端：ServerHello + 证书 + Finished",from:"源站 →(代理)→ 客户端",to:"客户端",proto:"TLS 1.3",summary:"源站选定参数、发证书链并证明持有私钥。客户端校验证书的域名与信任链——校验对象始终是源站，不是代理。",
+wire:'ServerHello  选定 TLS_AES_256_GCM_SHA384, key_share\n<span class="cm">{ 以下均被握手密钥加密 }</span>\nEncryptedExtensions\nCertificate  <span class="hl">CN/SAN = example.com</span>, 由公共 CA 签发\nCertificateVerify  对握手 transcript 的签名\nFinished  HMAC 校验值',
+fields:[["证书","源站真实证书","TLS 1.3 中证书已加密传输，被动抓包看不到（1.2 时明文）——但客户端能验"],["CertificateVerify","私钥签名","证明对端真持私钥；普通代理伪造不了，这就是 CONNECT 保留端到端安全的根源"],["会话密钥","两端各自导出","密钥只存在于客户端与源站内存，代理不在导出路径上"]],
+insight:"对比 MITM 模式：MITM 恰恰是在这里「插一脚」——它抢先与源站完成一个真握手，再回头给客户端一张自签假证书。普通代理不做这件事，所以这一步原样通过。",
+vis:[["抓包可见","ServerHello 明文，其余加密"],["代理视角","一串转发字节"],["源站视角","正常握手"]]},
+{id:10,phase:"隧道内 · TLS 握手",title:"⑫ 客户端 → 源站：Finished（握手完成）",from:"客户端 →(代理)→ 源站",to:"源站",proto:"TLS 1.3",summary:"客户端发 Finished 并立即附带第一份应用数据。TLS 通道建立——从报文 4 到现在，代理只参与了 4 与 9 两步。",
+wire:'Finished  HMAC 校验值 <span class="cm">{加密}</span>\n<span class="cm">—— 握手完成，应用数据密钥启用 ——</span>\nTLS Record  Type=<span class="hl">23 Application Data</span>\n  Encrypted: 7a3f 9c21 ... <span class="cm">(见下一步)</span>',
+fields:[["总耗时","CONNECT 后 +1 RTT","TLS 1.3 的 1-RTT 优势在隧道里完整保留，代理只增加转发时延"],["客户端校验结果","证书链✓ 域名✓ 签名✓","任一失败客户端直接断开，代理收到的是戛然而止的 FIN/RST"],["代理计数","仅字节数/时长","连接级元数据（SNI、IP、字节数）是代理可见的全部"]],
+insight:"回望全程：HTTP 只出现了两次（报文④与⑨），TCP 握手两次（连接①②），TLS 握手一次且端到端。三种协议各司其职，互不越界——这就是 CONNECT 架构干净的原因。",
+vis:[["抓包可见","记录头 + 密文"],["代理视角","密文"],["源站视角","握手成功"]]},
+{id:11,phase:"隧道内 · 应用数据",title:"⑬ 客户端 → 源站：加密的 GET 请求",from:"客户端 →(代理)→ 源站",to:"源站",proto:"TLS Application Data",summary:"真正的 HTTP 请求在这里——但已是密文。解密后是再普通不过的源站形式请求（注意与明文代发的绝对 URI 形式对比）。",
+wire:'<span class="cm"># 线上实际字节（代理/抓包所见）</span>\nTLS Record  Type=23  Length=512\n  Encrypted Data: <span class="hl">9f3a c41d 77e0 ...</span>\n\n<span class="cm"># 解密后（仅客户端与源站可见）</span>\n<span class="gr">GET /index.html HTTP/1.1</span>\n<span class="gr">Host: example.com</span>\n<span class="gr">Cookie: session=...</span>',
+fields:[["请求形式","源站形式 /index.html","隧道里是客户端与源站「直连」语义，不再需要绝对 URI——与明文代发的第一个抓包区别"],["代理可知","长度 512B、方向、时序","可做流量分析（大小/时序指纹），无法还原内容"],["分片","TLS 记录 ≠ TCP 包","一条记录可跨多个 TCP 段，一个 TCP 段也可含多条记录，别按包对语义"]],
+insight:"这就是「能抓到 HTTPS 报文吗」的最终答案落点：包当然在，内容不在。除非有 SSLKEYLOGFILE 的会话密钥，或代理是 MITM，否则到此为止。",
+vis:[["抓包可见","仅长度与时序"],["代理视角","密文"],["源站视角","解密得明文请求"]]},
+{id:12,phase:"隧道内 · 应用数据 + 关闭",title:"⑭ 源站 → 客户端：加密响应；⑮ FIN 关闭",from:"源站 →(代理)→ 客户端",to:"客户端",proto:"TLS + TCP",summary:"响应同为密文回传。业务结束时任一端关 TCP，代理随即关闭另一条连接，隧道整体拆除。",
+wire:'TLS Record  Type=23  Length=8192\n  Encrypted Data: <span class="hl">b812 04fe ...</span>\n<span class="cm"># 解密后: HTTP/1.1 200 OK + HTML 正文</span>\n\n<span class="cm"># 关闭: TLS close_notify → TCP FIN/ACK ×2 条连接</span>\n客户端—代理 FIN → 代理—源站 FIN → 逐级 ACK',
+fields:[["响应路径","源站→代理→客户端","代理仍是逐字节转发；大响应在此处分多条 TLS 记录/多个 TCP 段"],["结束信号","TCP 关闭","隧道无 HTTP 层结束标记，连接关 = 隧道亡；keep-alive 复用发生在 TLS 内部（多请求共用一条 TLS 连接）"],["代理收尾","回收两条连接 + 记账","日志里留下的正是 CONNECT 行：谁、何时、连了哪、传了多少字节"]],
+insight:"全程复盘：12 个关键报文里，代理「读懂」的只有 ④ 和 ⑨；它「经手」的却是全部。这种『只在门口验票、进门后不管』的设计，正是 CONNECT 能同时满足管控与端到端加密的原因。",
+vis:[["抓包可见","密文 + FIN"],["代理视角","密文 + 流量统计"],["源站视角","解密得明文响应"]]}
+];
+var HTTP_STEPS=[
+{id:1,phase:"连接① · TCP 握手",title:"① 客户端 → 代理：TCP 三次握手",from:"客户端",to:"代理",proto:"TCP",summary:"与 CONNECT 场景完全相同：先连代理 8080。区别从下一个报文开始。",
+wire:'SYN → SYN-ACK → ACK\n192.168.1.100:54321 ↔ 203.0.113.10:8080  ESTABLISHED',
+fields:[["连接目标","代理 :8080","相同"],["后续分岔","GET vs CONNECT","明文场景发绝对 URI 的 GET；隧道场景发 CONNECT"]],
+insight:"两种模式共用同一入口。代理靠请求方法区分：GET/POST 等 = 代发模式，CONNECT = 隧道模式。",
+vis:[["抓包可见","握手全文"],["代理视角","等请求"],["源站视角","无感知"]]},
+{id:2,phase:"代发请求",title:"② 客户端 → 代理：GET（绝对 URI）★",from:"客户端",to:"代理",proto:"HTTP 明文",summary:"请求行里是完整 URL——这是明文代发独有的形式，代理靠它知道目标，无需 CONNECT、无需单独拨号协商。",
+wire:'<span class="hl">GET http://example.com/index.html HTTP/1.1</span>\nHost: example.com\nCookie: session=abc123\n<span class="cm">(全部明文，代理完整可见、可改)</span>',
+fields:[["请求目标","绝对 URI 形式","scheme+host+path 全写；这就是「目标地址」的载体，替代了 CONNECT 的职责"],["隐私","零","URL、Cookie、正文对代理与链路抓包全透明"]],
+insight:"没有隧道、没有模式切换：这一个报文既是寻址、又是请求本身。代理读完就能代发。",
+vis:[["抓包可见","★ 全文明文"],["代理视角","全部可见"],["源站视角","无感知"]]},
+{id:3,phase:"代理拨号 + 代发",title:"③ 代理 → 源站：TCP 握手 + 改写后的 GET",from:"代理",to:"源站",proto:"TCP + HTTP 明文",summary:"代理解析域名、连源站 80，把请求改写成源站形式再发出——它是一个真正的 HTTP 参与者，不是管道。",
+wire:'<span class="cm"># TCP: 203.0.113.10:45679 → 93.184.216.34:80 三次握手</span>\n<span class="gr">GET /index.html HTTP/1.1</span>\nHost: example.com\nCookie: session=abc123\nVia: 1.1 proxy\nX-Forwarded-For: 192.168.1.100',
+fields:[["请求行变化","绝对 URI → /index.html","代理改写请求；还可增删头（Via、XFF）、做缓存/过滤"],["源站所见访客","代理 IP + XFF 注明的客户端","与隧道模式不同：这里有带内渠道传递客户端地址"]],
+insight:"「改写」是代发模式的本质动作，也是它能缓存、能过滤、能加头的原因——代价是必须看懂、且看得见全部内容。",
+vis:[["抓包可见","★ 全文明文"],["代理视角","全部可见、可改写"],["源站视角","收到改写后请求"]]},
+{id:4,phase:"响应回传",title:"④ 源站 → 代理 → 客户端：200 明文响应",from:"源站",to:"客户端",proto:"HTTP 明文",summary:"响应原样（或经代理缓存/改写后）回传。全程无 TLS、无隧道，连接可被后续请求复用。",
+wire:'HTTP/1.1 200 OK\nContent-Type: text/html\n<span class="cm">&lt;html&gt;... 全部明文 ...&lt;/html&gt;</span>',
+fields:[["端到端性","无","两个独立的 HTTP 事务被代理拼接：客户端↔代理、代理↔源站"],["连接复用","请求级 keep-alive","与隧道模式的「一 CONNECT 独占一连接」形成对照"]],
+insight:"对照总结：HTTP 代发 = 代理替你说话（可见可改）；HTTPS 隧道 = 代理替你接线（只验票、不听内容）。CONNECT 就是「接线」模式的开关。",
+vis:[["抓包可见","★ 全文明文"],["代理视角","全部可见"],["源站视角","正常响应"]]}
+];
+var curScene="https", curIdx=6;
+function steps(){return curScene==="https"?HTTPS_STEPS:HTTP_STEPS}
+function renderSeq(){
+  var box=document.getElementById("seqBox");
+  var s=steps();
+  var h='<div class="seq-head"><div class="c">客户端</div><div></div><div class="p">HTTP 代理</div><div></div><div class="s">源站</div></div>';
+  s.forEach(function(st,i){
+    var cls=i===curIdx?" active":(i<curIdx?"":" dim");
+    // determine columns: simplify by from/to text
+    var left="",mid="",right="",a1="",a2="";
+    var f=st.from, t=st.to;
+    function cell(txt){return '<div class="seq-cell"><b>'+txt+'</b></div>'}
+    // heuristic layout
+    if(f.indexOf("客户端")===0 && t.indexOf("代理")>=0 && f.indexOf("→")<0){ left=st.proto; a1="——▶"; mid=""; }
+    else if(f.indexOf("代理")===0 && t.indexOf("客户端")>=0){ a1="◀——"; mid=st.proto; }
+    else if(f.indexOf("代理")===0 && t.indexOf("源站")>=0){ mid=st.proto; a2="——▶"; }
+    else if(f.indexOf("源站")===0 && t.indexOf("代理")>=0){ a2="◀——"; mid=st.proto; }
+    else if(f.indexOf("源站")===0 && t.indexOf("客户端")>=0){ a1="◀——"; a2="◀——"; mid=st.proto; }
+    else if(f.indexOf("客户端")>=0 && t.indexOf("源站")>=0){ a1="——▶"; a2="——▶"; mid=st.proto; }
+    else if(f.indexOf("代理")===0 && t.indexOf("DNS")>=0){ mid=st.proto; a2="——▶ DNS"; }
+    else { mid=st.proto; }
+    h+='<div class="seq-row'+cls+'" data-i="'+i+'"><div class="seq-cell">'+(i===curIdx?left||"● 当前":"")+'</div><div class="arrow fwd">'+a1+'</div><div class="seq-cell"><b>'+st.title+'</b><span style="color:var(--muted)">'+st.phase+'</span></div><div class="arrow fwd">'+a2+'</div><div class="seq-cell">'+(i===curIdx?right:"")+'</div></div>';
+  });
+  box.innerHTML=h;
+  var rows=box.querySelectorAll(".seq-row");
+  for(var k=0;k<rows.length;k++){rows[k].addEventListener("click",function(){curIdx=parseInt(this.getAttribute("data-i"));renderAll();});}
+}
+function renderDetail(){
+  var st=steps()[curIdx];
+  document.getElementById("stepLabel").textContent="第 "+(curIdx+1)+" / "+steps().length+" 步";
+  document.getElementById("progBar").style.width=((curIdx+1)/steps().length*100)+"%";
+  var fh="";
+  st.fields.forEach(function(r){fh+="<tr><td>"+r[0]+"</td><td>"+r[1]+"</td><td>"+r[2]+"</td></tr>"});
+  document.getElementById("detailMain").innerHTML=
+    '<span class="tag w">'+st.phase+'</span><h3>'+st.title+'</h3><p style="color:var(--muted);font-size:14px;margin:0">'+st.summary+'</p>'+
+    '<div class="meta"><span>'+st.from+' → '+st.to+'</span><span>'+st.proto+'</span></div>'+
+    '<pre class="wire">'+st.wire+'</pre>'+
+    '<table class="fields"><tr><th>字段</th><th>取值（示例）</th><th>说明</th></tr>'+fh+'</table>'+
+    '<div class="insight"><b>为什么重要 · </b>'+st.insight+'</div>';
+  var vh="";
+  st.vis.forEach(function(r){vh+='<div class="vis-row"><span>'+r[0]+'</span><span>'+r[1]+'</span></div>'});
+  document.getElementById("detailSide").innerHTML='<div class="vis-box"><h4>👁 可见性速览</h4>'+vh+'<h4 style="margin-top:18px">定位口诀</h4><p style="color:var(--muted)">先找 200 这条分界线：<br>• 非 200 → 问题在代理侧（认证 / 策略 / 拨号）<br>• 已 200 后中断 → 问题在 TLS / 源站侧<br>• 只有 SYN 没有 SYN-ACK → 对端不可达或被防火墙丢弃</p></div>';
+  document.getElementById("prevBtn").disabled=curIdx===0;
+  document.getElementById("nextBtn").disabled=curIdx===steps().length-1;
+}
+function syncTabs(){var ts=document.querySelectorAll(".tab");for(var i=0;i<ts.length;i++){ts[i].classList.toggle("active",ts[i].getAttribute("data-scene")===curScene)}}
+function renderAll(){renderSeq();renderDetail()}
+document.getElementById("prevBtn").addEventListener("click",function(){if(curIdx>0){curIdx--;renderAll()}});
+document.getElementById("nextBtn").addEventListener("click",function(){if(curIdx<steps().length-1){curIdx++;renderAll()}});
+var tabs=document.querySelectorAll(".tab");
+for(var i=0;i<tabs.length;i++){tabs[i].addEventListener("click",function(){curScene=this.getAttribute("data-scene");curIdx=curScene==="https"?6:1;syncTabs();renderAll();});}
+var timer=null;
+document.getElementById("playBtn").addEventListener("click",function(){
+  if(timer){clearInterval(timer);timer=null;this.textContent="▶ 自动播放";return}
+  this.textContent="⏸ 暂停";
+  var btn=this;
+  timer=setInterval(function(){ if(curIdx<steps().length-1){curIdx++;renderAll()} else {clearInterval(timer);timer=null;btn.textContent="▶ 自动播放"} },2200);
+});
+renderAll();
+</script>
+</body>
+</html>
